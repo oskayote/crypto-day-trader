@@ -13,6 +13,12 @@ const COINS = [
   { id: "polygon", symbol: "POL", name: "Polygon", binance: "POLUSDT", cc: "POL", kraken: "POLUSD", krakenWs: "POL/USD", krakenOhlc: "POLUSD" },
 ];
 
+const RISK_PROFILES = [
+  { label: "Conservative", emoji: "🛡️", color: "#22c55e", targetMult: 0.7, stopMult: 0.7, desc: "Tighter targets & stops" },
+  { label: "Moderate", emoji: "⚖️", color: "#f59e0b", targetMult: 1.0, stopMult: 1.0, desc: "Balanced risk/reward" },
+  { label: "Aggressive", emoji: "🔥", color: "#ef4444", targetMult: 1.5, stopMult: 1.3, desc: "Wider targets, more risk" },
+];
+
 const FEE_TIERS = [
   { label: "Starter", maker: 0.16, taker: 0.26 },
   { label: "Intermediate", maker: 0.14, taker: 0.24 },
@@ -124,51 +130,109 @@ function TradeChartComponent(props) {
   if (hist.length < 2) {
     return (
       <div style={{ background: "#0a0e17", borderRadius: 10, padding: 12, marginTop: 8, textAlign: "center", color: "#64748b", fontSize: 11 }}>
-        Collecting price data... ({hist.length} ticks)
+        <div style={{ marginBottom: 4 }}>📊 Collecting price data... ({hist.length} ticks)</div>
+        <div style={{ fontSize: 10, color: "#475569" }}>Chart appears after 2+ price updates</div>
       </div>
     );
   }
-  var W = mobile ? 300 : 500;
-  var H = mobile ? 120 : 150;
-  var pad = 30;
+  var W = mobile ? 320 : 560;
+  var H = mobile ? 160 : 200;
+  var padL = 45;
+  var padR = 60;
+  var padT = 15;
+  var padB = 25;
+  var chartW = W - padL - padR;
+  var chartH = H - padT - padB;
+
   var allPrices = hist.map(function (h) { return h.p; });
   allPrices.push(trade.targetPrice, trade.stopPrice, trade.entryPrice);
   if (currentPrice) allPrices.push(currentPrice);
   var maxP = Math.max.apply(null, allPrices);
   var minP = Math.min.apply(null, allPrices);
   var range = maxP - minP || 1;
+  // Add 5% padding
+  maxP = maxP + range * 0.05;
+  minP = minP - range * 0.05;
+  range = maxP - minP;
 
-  function yP(p) { return pad + (H - pad * 2) * (1 - (p - minP) / range); }
+  function yP(p) { return padT + chartH * (1 - (p - minP) / range); }
+  function xP(i) { return padL + (i / Math.max(hist.length - 1, 1)) * chartW; }
 
-  var pts = hist.map(function (h, i) {
-    return (pad + (i / (hist.length - 1)) * (W - pad * 2)) + "," + yP(h.p);
-  }).join(" ");
+  var pts = hist.map(function (h, i) { return xP(i) + "," + yP(h.p); }).join(" ");
 
   var entryY = yP(trade.entryPrice);
   var targetY = yP(trade.targetPrice);
   var stopY = yP(trade.stopPrice);
-  var pnlColor = currentPrice >= trade.entryPrice ? "#22c55e" : "#ef4444";
+  var lastX = xP(hist.length - 1);
+  var lastY = currentPrice ? yP(currentPrice) : yP(hist[hist.length - 1].p);
+  var pnl = currentPrice ? currentPrice - trade.entryPrice : hist[hist.length - 1].p - trade.entryPrice;
+  var pnlPct = (pnl / trade.entryPrice * 100).toFixed(2);
+  var pnlColor = pnl >= 0 ? "#22c55e" : "#ef4444";
+
+  // Build fill area between entry line and price line
+  var fillPts = padL + "," + entryY;
+  hist.forEach(function (h, i) { fillPts += " " + xP(i) + "," + yP(h.p); });
+  fillPts += " " + lastX + "," + entryY;
+
+  // Time labels
+  var startTime = new Date(hist[0].t);
+  var endTime = new Date(hist[hist.length - 1].t);
+  var elapsed = Math.round((endTime - startTime) / 1000);
+  var elapsedStr = elapsed < 60 ? elapsed + "s" : Math.floor(elapsed / 60) + "m " + (elapsed % 60) + "s";
 
   return (
-    <div style={{ background: "#0a0e17", borderRadius: 10, padding: 10, marginTop: 8 }}>
-      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6 }}>TRADE MONITOR — {hist.length} ticks</div>
+    <div style={{ background: "#0a0e17", borderRadius: 10, padding: mobile ? 8 : 12, marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#f8fafc" }}>📊 {trade.symbol} {trade.type}</span>
+          <span style={{ fontSize: 10, color: pnlColor, fontWeight: 700 }}>{pnl >= 0 ? "+" : ""}{pnlPct}%</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, fontSize: 10, color: "#64748b" }}>
+          <span>⏱ {elapsedStr}</span>
+          <span>{hist.length} ticks</span>
+        </div>
+      </div>
       <svg width={W} height={H} viewBox={"0 0 " + W + " " + H} style={{ display: "block", width: "100%", height: "auto" }}>
-        <rect x={pad} y={targetY} width={W - pad * 2} height={Math.max(1, entryY - targetY)} fill="#22c55e08" />
-        <rect x={pad} y={entryY} width={W - pad * 2} height={Math.max(1, stopY - entryY)} fill="#ef444408" />
-        <line x1={pad} y1={targetY} x2={W - pad} y2={targetY} stroke="#22c55e" strokeWidth="1" strokeDasharray="4,3" />
-        <line x1={pad} y1={entryY} x2={W - pad} y2={entryY} stroke="#8b5cf6" strokeWidth="1" strokeDasharray="4,3" />
-        <line x1={pad} y1={stopY} x2={W - pad} y2={stopY} stroke="#ef4444" strokeWidth="1" strokeDasharray="4,3" />
-        <text x={4} y={targetY + 4} fill="#22c55e" fontSize="9">TP</text>
-        <text x={4} y={entryY + 4} fill="#8b5cf6" fontSize="9">Entry</text>
-        <text x={4} y={stopY + 4} fill="#ef4444" fontSize="9">SL</text>
-        <text x={W - pad + 4} y={targetY + 4} fill="#22c55e" fontSize="8">{"$" + fmt(trade.targetPrice)}</text>
-        <text x={W - pad + 4} y={entryY + 4} fill="#8b5cf6" fontSize="8">{"$" + fmt(trade.entryPrice)}</text>
-        <text x={W - pad + 4} y={stopY + 4} fill="#ef4444" fontSize="8">{"$" + fmt(trade.stopPrice)}</text>
-        <polyline points={pts} fill="none" stroke={pnlColor} strokeWidth="2" />
-        <circle cx={pad} cy={entryY} r="4" fill="#8b5cf6" />
-        {currentPrice != null && (
-          <circle cx={pad + (hist.length - 1) / Math.max(hist.length - 1, 1) * (W - pad * 2)} cy={yP(currentPrice)} r="5" fill={pnlColor} stroke="#0a0e17" strokeWidth="2" />
-        )}
+        {/* Target zone fill */}
+        <rect x={padL} y={targetY} width={chartW} height={Math.max(0, entryY - targetY)} fill="#22c55e06" />
+        {/* Stop zone fill */}
+        <rect x={padL} y={entryY} width={chartW} height={Math.max(0, stopY - entryY)} fill="#ef444406" />
+
+        {/* Horizontal grid lines */}
+        <line x1={padL} y1={targetY} x2={padL + chartW} y2={targetY} stroke="#22c55e" strokeWidth="1" strokeDasharray="6,4" />
+        <line x1={padL} y1={entryY} x2={padL + chartW} y2={entryY} stroke="#8b5cf6" strokeWidth="1" strokeDasharray="6,4" />
+        <line x1={padL} y1={stopY} x2={padL + chartW} y2={stopY} stroke="#ef4444" strokeWidth="1" strokeDasharray="6,4" />
+
+        {/* P&L fill area */}
+        <polygon points={fillPts} fill={pnlColor} fillOpacity="0.08" />
+
+        {/* Price line */}
+        <polyline points={pts} fill="none" stroke={pnlColor} strokeWidth="2.5" strokeLinejoin="round" />
+
+        {/* Entry marker */}
+        <circle cx={padL} cy={entryY} r="5" fill="#8b5cf6" stroke="#0a0e17" strokeWidth="2" />
+        {/* Current price marker */}
+        <circle cx={lastX} cy={lastY} r="6" fill={pnlColor} stroke="#0a0e17" strokeWidth="2" />
+        {/* Pulse ring on current */}
+        <circle cx={lastX} cy={lastY} r="10" fill="none" stroke={pnlColor} strokeWidth="1" opacity="0.4" />
+
+        {/* Left labels */}
+        <rect x={0} y={targetY - 8} width={42} height={16} rx="3" fill="#22c55e20" />
+        <text x={21} y={targetY + 4} fill="#22c55e" fontSize="9" textAnchor="middle" fontWeight="600">TARGET</text>
+        <rect x={0} y={entryY - 8} width={42} height={16} rx="3" fill="#8b5cf620" />
+        <text x={21} y={entryY + 4} fill="#8b5cf6" fontSize="9" textAnchor="middle" fontWeight="600">ENTRY</text>
+        <rect x={0} y={stopY - 8} width={42} height={16} rx="3" fill="#ef444420" />
+        <text x={21} y={stopY + 4} fill="#ef4444" fontSize="9" textAnchor="middle" fontWeight="600">STOP</text>
+
+        {/* Right price labels */}
+        <text x={padL + chartW + 4} y={targetY + 4} fill="#22c55e" fontSize="9" fontWeight="600">{"$" + fmt(trade.targetPrice)}</text>
+        <text x={padL + chartW + 4} y={entryY + 4} fill="#8b5cf6" fontSize="9" fontWeight="600">{"$" + fmt(trade.entryPrice)}</text>
+        <text x={padL + chartW + 4} y={stopY + 4} fill="#ef4444" fontSize="9" fontWeight="600">{"$" + fmt(trade.stopPrice)}</text>
+        {currentPrice && <text x={padL + chartW + 4} y={lastY + 4} fill={pnlColor} fontSize="10" fontWeight="700">{"$" + fmt(currentPrice)}</text>}
+
+        {/* Time axis */}
+        <text x={padL} y={H - 4} fill="#475569" fontSize="8">Start</text>
+        <text x={padL + chartW} y={H - 4} fill="#475569" fontSize="8" textAnchor="end">Now</text>
       </svg>
     </div>
   );
@@ -292,17 +356,24 @@ function analyzeOhlc(candles) {
   return { atr: atr, sup: sup, res: res, volPct: volPct, mom: mom, rsi: rsi, price: price, trend: trend };
 }
 
-function makeTrade(coin, md, type, tc, desc, eL, eH, tL, tH, stop, conf, analysis) {
-  conf = Math.max(10, Math.min(95, Math.round(conf)));
+function makeTrade(coin, md, type, tc, desc, eL, eH, tL, tH, stop, conf, analysis, risk) {
+  var rm = risk || { targetMult: 1, stopMult: 1 };
   var ae = (eL + eH) / 2;
-  var at = (tL + tH) / 2;
+  // Apply risk multipliers to target distance and stop distance
+  var rawTargetDist = ((tL + tH) / 2) - ae;
+  var rawStopDist = ae - stop;
+  var adjTL = ae + rawTargetDist * rm.targetMult;
+  var adjTH = ae + (tH - ae + (tH - tL) / 2) * rm.targetMult;
+  var adjStop = ae - rawStopDist * rm.stopMult;
+  conf = Math.max(10, Math.min(95, Math.round(conf)));
+  var at = (adjTL + adjTH) / 2;
   var ppct = ((at - ae) / ae) * 100;
-  var lpct = Math.abs((stop - ae) / ae) * 100;
+  var lpct = Math.abs((adjStop - ae) / ae) * 100;
   var rr = lpct > 0 ? ppct / lpct : 1;
   var score = (ppct / 6) * 0.35 + (conf / 100) * 0.35 + Math.min(rr / 3, 1) * 0.3;
   return {
     symbol: coin.symbol, name: coin.name, type: type, typeColor: tc, desc: desc,
-    entryLow: eL, entryHigh: eH, targetLow: tL, targetHigh: tH, stop: stop,
+    entryLow: eL, entryHigh: eH, targetLow: adjTL, targetHigh: adjTH, stop: adjStop,
     rr: "1:" + rr.toFixed(1), confidence: conf, direction: "Long", profitPct: ppct, score: score,
     bid: md.bid, ask: md.ask, spread: md.spread,
     atrPct: analysis ? analysis.volPct : null, rsi: analysis ? analysis.rsi : null,
@@ -312,13 +383,13 @@ function makeTrade(coin, md, type, tc, desc, eL, eH, tL, tH, stop, conf, analysi
   };
 }
 
-function generateTrades(coin, md, analysis) {
+function generateTrades(coin, md, analysis, risk) {
   var trades = [];
   var p = md.price;
   var ch = md.change24h || 0;
   if (!analysis) {
     var atr = p * 0.012;
-    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — scalp opportunity.", p - atr * 0.3, p, p + atr * 1.8, p + atr * 2.2, p - atr * 1.2, 55, null));
+    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — scalp opportunity.", p - atr * 0.3, p, p + atr * 1.8, p + atr * 2.2, p - atr * 1.2, 55, null, risk));
     return trades;
   }
   var atr2 = analysis.atr;
@@ -337,7 +408,7 @@ function generateTrades(coin, md, analysis) {
     if (md.spread != null && md.spread < 0.05) c1 += 5;
     trades.push(makeTrade(coin, md, "Scalp", "#06b6d4",
       coin.symbol + " scalp — vol " + volPct.toFixed(1) + "%, " + (mom > 0 ? "bullish" : "bearish") + " momentum. Target " + ((p + atr2 * 2.0 - p) / p * 100).toFixed(1) + "% move.",
-      p - atr2 * 0.4, p, p + atr2 * 1.5, p + atr2 * 2.0, p - atr2 * 1.2, c1, analysis));
+      p - atr2 * 0.4, p, p + atr2 * 1.5, p + atr2 * 2.0, p - atr2 * 1.2, c1, analysis, risk));
   }
 
   // Long
@@ -348,7 +419,7 @@ function generateTrades(coin, md, analysis) {
     if (ch > 2) c2 += 5;
     trades.push(makeTrade(coin, md, "Long", "#22c55e",
       coin.symbol + " long — " + trend + " trend, targeting " + ((p + atr2 * 4.0 - p) / p * 100).toFixed(1) + "% gain with wider stop.",
-      p - atr2 * 0.5, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.0, p - atr2 * 1.8, c2, analysis));
+      p - atr2 * 0.5, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.0, p - atr2 * 1.8, c2, analysis, risk));
   }
 
   // Breakout
@@ -358,7 +429,7 @@ function generateTrades(coin, md, analysis) {
     if (ch > 1) c3 += 5;
     trades.push(makeTrade(coin, md, "Breakout", "#f59e0b",
       coin.symbol + " breakout — pressing resistance $" + fmt(res) + ". Break could trigger " + ((res + atr2 * 3.5 - res) / res * 100).toFixed(1) + "% run.",
-      res * 0.998, res * 1.005, res + atr2 * 2.5, res + atr2 * 3.5, res - atr2 * 1.2, c3, analysis));
+      res * 0.998, res * 1.005, res + atr2 * 2.5, res + atr2 * 3.5, res - atr2 * 1.2, c3, analysis, risk));
   }
 
   // Dip Buy
@@ -368,7 +439,7 @@ function generateTrades(coin, md, analysis) {
     if (((p - sup) / p) * 100 < 1.5) c4 += 8;
     trades.push(makeTrade(coin, md, "Dip Buy", "#8b5cf6",
       coin.symbol + " dip buy — oversold RSI " + rsi.toFixed(0) + " near support $" + fmt(sup) + ". Aggressive reversal targeting " + ((sup + atr2 * 3.5 - sup) / sup * 100).toFixed(1) + "% bounce.",
-      sup * 0.997, sup * 1.005, sup + atr2 * 2.5, sup + atr2 * 3.5, sup - atr2 * 1.5, c4, analysis));
+      sup * 0.997, sup * 1.005, sup + atr2 * 2.5, sup + atr2 * 3.5, sup - atr2 * 1.5, c4, analysis, risk));
   }
 
   // Momentum
@@ -378,7 +449,7 @@ function generateTrades(coin, md, analysis) {
     if (trend === "up") c5 += 6;
     trades.push(makeTrade(coin, md, "Momentum", "#f97316",
       coin.symbol + " momentum — " + mom.toFixed(1) + "% above SMA, " + ch.toFixed(1) + "% 24h. Riding the wave.",
-      p - atr2 * 0.2, p + atr2 * 0.1, p + atr2 * 2.0, p + atr2 * 3.0, p - atr2 * 1.5, c5, analysis));
+      p - atr2 * 0.2, p + atr2 * 0.1, p + atr2 * 2.0, p + atr2 * 3.0, p - atr2 * 1.5, c5, analysis, risk));
   }
 
   // Reversal
@@ -387,11 +458,11 @@ function generateTrades(coin, md, analysis) {
     if (rsi < 25) c6 += 8;
     trades.push(makeTrade(coin, md, "Reversal", "#ec4899",
       coin.symbol + " reversal — deeply oversold RSI " + rsi.toFixed(0) + ", down " + Math.abs(ch).toFixed(1) + "%. Contrarian high risk/reward play.",
-      p - atr2 * 0.3, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.5, p - atr2 * 2.0, c6, analysis));
+      p - atr2 * 0.3, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.5, p - atr2 * 2.0, c6, analysis, risk));
   }
 
   if (trades.length === 0) {
-    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — range scalp.", p - atr2 * 0.5, p, p + atr2 * 2.0, p + atr2 * 2.8, p - atr2 * 1.3, 50, analysis));
+    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — range scalp.", p - atr2 * 0.5, p, p + atr2 * 2.0, p + atr2 * 2.8, p - atr2 * 1.3, 50, analysis, risk));
   }
   return trades;
 }
@@ -428,6 +499,7 @@ export default function CryptoDashboard() {
   var _showPort = st(true), showPort = _showPort[0], setShowPort = _showPort[1];
   var _notif = st(null), notif = _notif[0], setNotif = _notif[1];
   var _expTrade = st(null), expTrade = _expTrade[0], setExpTrade = _expTrade[1];
+  var _riskLevel = st(1), riskLevel = _riskLevel[0], setRiskLevel = _riskLevel[1];
 
   var wsRef = useRef(null);
   var klRef = useRef({});
@@ -478,16 +550,20 @@ export default function CryptoDashboard() {
     var cost = amt + fee;
     if (cost > balance) { setNotif({ m: "Not enough balance!", c: "#ef4444" }); setTimeout(function () { setNotif(null); }, 3000); return; }
     var coins = amt / ep;
+    var tradeId = Date.now();
     setBalance(function (b) { return b - cost; });
     setOpenTrades(function (prev) {
       return prev.concat([{
-        id: Date.now(), symbol: trade.symbol, coinId: trade.coinId || COINS.find(function (c) { return c.symbol === trade.symbol; }).id,
+        id: tradeId, symbol: trade.symbol, coinId: trade.coinId || COINS.find(function (c) { return c.symbol === trade.symbol; }).id,
         type: trade.type, entryPrice: ep, targetPrice: tp, stopPrice: trade.stop, coins: coins, investAmt: amt, entryFee: fee,
         enteredAt: new Date().toLocaleTimeString(), status: "open", priceHistory: [{ p: ep, t: Date.now() }]
       }]);
     });
     setNotif({ m: "Opened " + trade.symbol + " " + trade.type + " — $" + amt, c: "#22c55e" });
     setTimeout(function () { setNotif(null); }, 3000);
+    // Auto-expand the new trade's chart
+    setExpTrade(tradeId);
+    setShowPort(true);
   }
 
   function closeTrade(id, reason) {
@@ -637,7 +713,7 @@ export default function CryptoDashboard() {
   var allTrades = COINS.flatMap(function (c) {
     var d = merged[c.id];
     if (!d || !d.price) return [];
-    return generateTrades(c, d, analyzeOhlc(ohlcData[c.id] || null));
+    return generateTrades(c, d, analyzeOhlc(ohlcData[c.id] || null), RISK_PROFILES[riskLevel]);
   }).sort(function (a, b) { return b.score - a.score; });
 
   var tradeTypes = ["all"].concat(Array.from(new Set(allTrades.map(function (t) { return t.type.toLowerCase(); }))));
@@ -738,6 +814,29 @@ export default function CryptoDashboard() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Risk Profile Selector */}
+      <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: mob ? "8px 10px" : "10px 16px", marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>Risk Level</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+          {RISK_PROFILES.map(function (rp, i) {
+            var active = riskLevel === i;
+            return (
+              <button key={i} onClick={function () { setRiskLevel(i); }} style={{
+                background: active ? rp.color + "20" : "#0a0e17",
+                border: "2px solid " + (active ? rp.color : "#1e293b"),
+                borderRadius: 10, padding: mob ? "8px 6px" : "10px 12px", cursor: "pointer", textAlign: "center",
+                transition: "all 0.2s",
+              }}>
+                <div style={{ fontSize: 18, marginBottom: 2 }}>{rp.emoji}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: active ? rp.color : "#94a3b8" }}>{rp.label}</div>
+                <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{rp.desc}</div>
+                <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>Target: {rp.targetMult}x · Stop: {rp.stopMult}x</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Fees + Sources */}
