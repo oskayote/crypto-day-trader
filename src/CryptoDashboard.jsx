@@ -135,12 +135,12 @@ function TradeChartComponent(props) {
       </div>
     );
   }
-  var W = mobile ? 320 : 560;
-  var H = mobile ? 160 : 200;
-  var padL = 45;
-  var padR = 60;
-  var padT = 15;
-  var padB = 25;
+  var W = mobile ? 320 : 480;
+  var H = mobile ? 130 : 120;
+  var padL = 30;
+  var padR = 50;
+  var padT = 10;
+  var padB = 18;
   var chartW = W - padL - padR;
   var chartH = H - padT - padB;
 
@@ -181,13 +181,13 @@ function TradeChartComponent(props) {
   var elapsedStr = elapsed < 60 ? elapsed + "s" : Math.floor(elapsed / 60) + "m " + (elapsed % 60) + "s";
 
   return (
-    <div style={{ background: "#0a0e17", borderRadius: 10, padding: mobile ? 8 : 12, marginTop: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#f8fafc" }}>📊 {trade.symbol} {trade.type}</span>
+    <div style={{ background: "#0a0e17", borderRadius: 10, padding: mobile ? 8 : 10, marginTop: 8, maxWidth: mobile ? "100%" : 520 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#f8fafc" }}>📊 {trade.symbol}</span>
           <span style={{ fontSize: 10, color: pnlColor, fontWeight: 700 }}>{pnl >= 0 ? "+" : ""}{pnlPct}%</span>
         </div>
-        <div style={{ display: "flex", gap: 8, fontSize: 10, color: "#64748b" }}>
+        <div style={{ display: "flex", gap: 6, fontSize: 9, color: "#64748b" }}>
           <span>⏱ {elapsedStr}</span>
           <span>{hist.length} ticks</span>
         </div>
@@ -217,18 +217,15 @@ function TradeChartComponent(props) {
         <circle cx={lastX} cy={lastY} r="10" fill="none" stroke={pnlColor} strokeWidth="1" opacity="0.4" />
 
         {/* Left labels */}
-        <rect x={0} y={targetY - 8} width={42} height={16} rx="3" fill="#22c55e20" />
-        <text x={21} y={targetY + 4} fill="#22c55e" fontSize="9" textAnchor="middle" fontWeight="600">TARGET</text>
-        <rect x={0} y={entryY - 8} width={42} height={16} rx="3" fill="#8b5cf620" />
-        <text x={21} y={entryY + 4} fill="#8b5cf6" fontSize="9" textAnchor="middle" fontWeight="600">ENTRY</text>
-        <rect x={0} y={stopY - 8} width={42} height={16} rx="3" fill="#ef444420" />
-        <text x={21} y={stopY + 4} fill="#ef4444" fontSize="9" textAnchor="middle" fontWeight="600">STOP</text>
+        <text x={2} y={targetY + 3} fill="#22c55e" fontSize="8" fontWeight="600">TP</text>
+        <text x={2} y={entryY + 3} fill="#8b5cf6" fontSize="8" fontWeight="600">Entry</text>
+        <text x={2} y={stopY + 3} fill="#ef4444" fontSize="8" fontWeight="600">SL</text>
 
         {/* Right price labels */}
-        <text x={padL + chartW + 4} y={targetY + 4} fill="#22c55e" fontSize="9" fontWeight="600">{"$" + fmt(trade.targetPrice)}</text>
-        <text x={padL + chartW + 4} y={entryY + 4} fill="#8b5cf6" fontSize="9" fontWeight="600">{"$" + fmt(trade.entryPrice)}</text>
-        <text x={padL + chartW + 4} y={stopY + 4} fill="#ef4444" fontSize="9" fontWeight="600">{"$" + fmt(trade.stopPrice)}</text>
-        {currentPrice && <text x={padL + chartW + 4} y={lastY + 4} fill={pnlColor} fontSize="10" fontWeight="700">{"$" + fmt(currentPrice)}</text>}
+        <text x={padL + chartW + 3} y={targetY + 3} fill="#22c55e" fontSize="8">{"$" + fmt(trade.targetPrice)}</text>
+        <text x={padL + chartW + 3} y={entryY + 3} fill="#8b5cf6" fontSize="8">{"$" + fmt(trade.entryPrice)}</text>
+        <text x={padL + chartW + 3} y={stopY + 3} fill="#ef4444" fontSize="8">{"$" + fmt(trade.stopPrice)}</text>
+        {currentPrice && <text x={padL + chartW + 3} y={lastY + 3} fill={pnlColor} fontSize="9" fontWeight="700">{"$" + fmt(currentPrice)}</text>}
 
         {/* Time axis */}
         <text x={padL} y={H - 4} fill="#475569" fontSize="8">Start</text>
