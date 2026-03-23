@@ -27,6 +27,16 @@ const TRADE_TEMPLATES = {
   dogecoin:{type:"Scalp",typeColor:"#06b6d4",desc:"DOGE momentum picking up with rising social volume. Quick scalp on dips to support.",entryOff:[-0.01,0],targetOff:[0.02,0.03],stopOff:-0.018,confidence:60},
 };
 
+function useWindowWidth() {
+  const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  useEffect(() => {
+    const h = () => setW(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return w;
+}
+
 function fmt(v) {
   if (v == null || isNaN(v)) return "—";
   if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -46,9 +56,9 @@ function genSparkline(base, change) {
   return d;
 }
 
-function MiniChart({ data, color }) {
+function MiniChart({ data, color, mobile }) {
   if (!data || data.length < 2) return null;
-  const h = 40, w = 120;
+  const h = mobile ? 35 : 40, w = mobile ? 100 : 120;
   const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
   const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
   const gid = `g${Math.random().toString(36).slice(2, 8)}`;
@@ -77,7 +87,48 @@ function ConfidenceBar({ value }) {
   );
 }
 
-function TradeExamples({ trade, amounts }) {
+function TradeExamplesMobile({ trade, amounts }) {
+  const ep = (trade.entryLow + trade.entryHigh) / 2;
+  const tp = (trade.targetLow + trade.targetHigh) / 2;
+  const sp = trade.stop;
+  const ppct = ((tp - ep) / ep) * 100;
+  const lpct = ((sp - ep) / ep) * 100;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Trade Examples</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {amounts.map((amt, i) => {
+          const coins = amt / ep, tv = coins * tp, sv = coins * sp, pr = tv - amt, lo = sv - amt;
+          return (
+            <div key={i} style={{ background: "#0a0e17", borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc", marginBottom: 8 }}>${amt.toLocaleString()} Investment</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Coins</div>
+                  <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 600 }}>{fmt(coins)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Target</div>
+                  <div style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>${fmt(tv)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Profit</div>
+                  <div style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>+${fmt(pr)} ({ppct.toFixed(1)}%)</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Loss (Stop)</div>
+                  <div style={{ fontSize: 13, color: "#ef4444", fontWeight: 600 }}>-${fmt(Math.abs(lo))} ({Math.abs(lpct).toFixed(1)}%)</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TradeExamplesDesktop({ trade, amounts }) {
   const ep = (trade.entryLow + trade.entryHigh) / 2;
   const tp = (trade.targetLow + trade.targetHigh) / 2;
   const sp = trade.stop;
@@ -116,11 +167,11 @@ function TradeExamples({ trade, amounts }) {
   );
 }
 
-function SourceDot({ status, label }) {
+function SourceDot({ status, label, mobile }) {
   const c = status === "live" ? "#22c55e" : status === "error" ? "#ef4444" : "#f59e0b";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}>
-      <div style={{ width: 7, height: 7, borderRadius: "50%", background: c, boxShadow: status === "live" ? `0 0 6px ${c}` : "none" }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: mobile ? 10 : 11 }}>
+      <div style={{ width: 7, height: 7, borderRadius: "50%", background: c, boxShadow: status === "live" ? `0 0 6px ${c}` : "none", flexShrink: 0 }} />
       <span style={{ color: status === "live" ? "#94a3b8" : "#64748b" }}>{label}</span>
     </div>
   );
@@ -136,6 +187,8 @@ async function safeFetch(url, timeout = 10000) {
 }
 
 export default function CryptoDashboard() {
+  const width = useWindowWidth();
+  const mob = width < 640;
   const [tab, setTab] = useState("all");
   const [time, setTime] = useState(new Date());
   const [amounts, setAmounts] = useState([100, 500, 1000]);
@@ -149,6 +202,7 @@ export default function CryptoDashboard() {
   const [fetchLog, setFetchLog] = useState([]);
   const [showLog, setShowLog] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
   const addLog = (msg) => setFetchLog(prev => [{ time: new Date().toLocaleTimeString(), msg }, ...prev].slice(0, 30));
 
@@ -174,7 +228,6 @@ export default function CryptoDashboard() {
     COINS.forEach(c => { pd[c.id] = { prices: [], change24h: [], high24h: [], low24h: [], volume: [], sparkline: null, sourceNames: [] }; });
     let anySuccess = false;
 
-    // 1. CoinGecko
     try {
       const d = await safeFetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINS.map(c => c.id).join(",")}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`);
       d.forEach(c => {
@@ -191,7 +244,6 @@ export default function CryptoDashboard() {
       ns.coingecko = "live"; anySuccess = true; addLog("CoinGecko: OK");
     } catch (e) { ns.coingecko = "error"; addLog("CoinGecko: " + e.message); }
 
-    // 2. Binance
     try {
       const d = await safeFetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(COINS.map(c => c.binance))}`);
       d.forEach(t => {
@@ -208,7 +260,6 @@ export default function CryptoDashboard() {
       ns.binance = "live"; anySuccess = true; addLog("Binance: OK");
     } catch (e) { ns.binance = "error"; addLog("Binance: " + e.message); }
 
-    // 3. CoinCap
     try {
       const d = await safeFetch("https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,solana,xrp,cardano,dogecoin");
       (d.data || []).forEach(c => {
@@ -223,7 +274,6 @@ export default function CryptoDashboard() {
       ns.coincap = "live"; anySuccess = true; addLog("CoinCap: OK");
     } catch (e) { ns.coincap = "error"; addLog("CoinCap: " + e.message); }
 
-    // 4. CryptoCompare
     try {
       const syms = COINS.map(c => c.cc).join(",");
       const d = await safeFetch(`https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${syms}&tsyms=USD`);
@@ -243,7 +293,6 @@ export default function CryptoDashboard() {
       ns.cryptocompare = "live"; anySuccess = true; addLog("CryptoCompare: OK");
     } catch (e) { ns.cryptocompare = "error"; addLog("CryptoCompare: " + e.message); }
 
-    // 5. Kraken
     try {
       const pairs = COINS.map(c => c.kraken).join(",");
       const d = await safeFetch(`https://api.kraken.com/0/public/Ticker?pair=${pairs}`);
@@ -265,14 +314,12 @@ export default function CryptoDashboard() {
       ns.kraken = "live"; anySuccess = true; addLog("Kraken: OK");
     } catch (e) { ns.kraken = "error"; addLog("Kraken: " + e.message); }
 
-    // 6. Fear & Greed
     try {
       const d = await safeFetch("https://api.alternative.me/fng/?limit=1");
       if (d.data?.[0]) setFearGreed({ value: parseInt(d.data[0].value), label: d.data[0].value_classification });
       ns.feargreed = "live"; addLog("Fear&Greed: OK");
     } catch (e) { ns.feargreed = "error"; addLog("Fear&Greed: " + e.message); }
 
-    // Global
     try {
       const d = await safeFetch("https://api.coingecko.com/api/v3/global");
       if (d.data) setGlobalData(d.data);
@@ -280,10 +327,7 @@ export default function CryptoDashboard() {
 
     setSources(ns);
 
-    if (!anySuccess) {
-      applyFallback();
-      return;
-    }
+    if (!anySuccess) { applyFallback(); return; }
 
     setUsingFallback(false);
     const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
@@ -292,14 +336,12 @@ export default function CryptoDashboard() {
       const p = pd[c.id];
       const avgPrice = avg(p.prices);
       m[c.id] = {
-        price: avgPrice,
-        change24h: avg(p.change24h),
+        price: avgPrice, change24h: avg(p.change24h),
         high24h: p.high24h.length ? Math.max(...p.high24h) : null,
         low24h: p.low24h.length ? Math.min(...p.low24h) : null,
         volume: avg(p.volume),
         sparkline: p.sparkline || (avgPrice ? genSparkline(avgPrice, avg(p.change24h) || 0) : null),
-        sourceCount: p.prices.length,
-        sourceNames: [...new Set(p.sourceNames)],
+        sourceCount: p.prices.length, sourceNames: [...new Set(p.sourceNames)],
         priceSpread: p.prices.length > 1 ? ((Math.max(...p.prices) - Math.min(...p.prices)) / avgPrice * 100).toFixed(3) : null,
       };
     });
@@ -307,24 +349,15 @@ export default function CryptoDashboard() {
     setLastUpdated(new Date());
   }, [applyFallback]);
 
-  useEffect(() => {
-    fetchAll();
-    const iv = setInterval(fetchAll, 60000);
-    return () => clearInterval(iv);
-  }, [fetchAll]);
-
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  useEffect(() => { fetchAll(); const iv = setInterval(fetchAll, 60000); return () => clearInterval(iv); }, [fetchAll]);
+  useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
 
   const liveCount = Object.values(sources).filter(s => s === "live").length;
   const hasPrices = Object.values(merged).some(m => m.price != null);
 
   const buildTrades = () => {
     return COINS.map(c => {
-      const d = merged[c.id];
-      const t = TRADE_TEMPLATES[c.id];
+      const d = merged[c.id], t = TRADE_TEMPLATES[c.id];
       if (!d?.price || !t) return null;
       const p = d.price;
       const eL = p * (1 + t.entryOff[0]), eH = p * (1 + t.entryOff[1]);
@@ -356,54 +389,61 @@ export default function CryptoDashboard() {
   const mktCapCh = globalData?.market_cap_change_percentage_24h_usd ?? 1.8;
   const fg = fearGreed || { value: 62, label: "Greed" };
   const fgColor = fg.value > 55 ? "#22c55e" : fg.value > 45 ? "#f59e0b" : "#ef4444";
+  const pad = mob ? "14px 14px" : "20px 24px";
 
   return (
-    <div style={{ background: "#0a0e17", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'Inter',-apple-system,sans-serif", padding: "20px 24px" }}>
+    <div style={{ background: "#0a0e17", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'Inter',-apple-system,sans-serif", padding: pad, WebkitTextSizeAdjust: "100%" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: mob ? "flex-start" : "center", marginBottom: mob ? 16 : 20, flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "#f8fafc", letterSpacing: -0.5 }}>
+          <h1 style={{ fontSize: mob ? 20 : 24, fontWeight: 700, margin: 0, color: "#f8fafc", letterSpacing: -0.5 }}>
             <span style={{ color: "#8b5cf6" }}>Crypto</span> Day Trader
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b" }}>
-            {time.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })} · {time.toLocaleTimeString()}
+          <p style={{ margin: "4px 0 0", fontSize: mob ? 11 : 13, color: "#64748b" }}>
+            {time.toLocaleDateString("en-US", { weekday: mob ? "short" : "long", month: "short", day: "numeric" })} · {time.toLocaleTimeString()}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {lastUpdated && <span style={{ fontSize: 11, color: "#64748b" }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
-          <button onClick={fetchAll} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "6px 12px", fontSize: 12, color: "#94a3b8", cursor: "pointer" }}>🔄 Refresh</button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {lastUpdated && !mob && <span style={{ fontSize: 11, color: "#64748b" }}>Updated {lastUpdated.toLocaleTimeString()}</span>}
+          <button onClick={fetchAll} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "6px 10px", fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>🔄</button>
         </div>
       </div>
 
       {/* Fallback Banner */}
       {usingFallback && (
-        <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 10, padding: "10px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13 }}>⚠️</span>
-          <span style={{ fontSize: 12, color: "#f59e0b" }}>Live APIs are unreachable from this sandbox environment. Showing cached sample data. For live prices, copy this app and run it locally or on a hosted site.</span>
-          <button onClick={fetchAll} style={{ background: "#f59e0b", color: "#000", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>Retry Live</button>
+        <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 10, padding: "10px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#f59e0b", flex: 1 }}>⚠️ Showing sample data. Host this app for live prices.</span>
+          <button onClick={fetchAll} style={{ background: "#f59e0b", color: "#000", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Retry</button>
         </div>
       )}
 
       {/* Source Status Bar */}
-      <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "10px 16px", marginBottom: 6 }}>
-        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8 }}>Sources</span>
-          <SourceDot status={sources.binance} label="Binance" />
-          <SourceDot status={sources.coingecko} label="CoinGecko" />
-          <SourceDot status={sources.coincap} label="CoinCap" />
-          <SourceDot status={sources.cryptocompare} label="CryptoCompare" />
-          <SourceDot status={sources.kraken} label="Kraken" />
-          <SourceDot status={sources.feargreed} label="Fear & Greed" />
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: liveCount >= 4 ? "#22c55e" : liveCount >= 2 ? "#f59e0b" : "#ef4444", fontWeight: 600 }}>{liveCount}/6 Active</span>
+      <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: mob ? "8px 12px" : "10px 16px", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8 }}>Sources</span>
+            <span style={{ fontSize: 11, color: liveCount >= 4 ? "#22c55e" : liveCount >= 2 ? "#f59e0b" : "#ef4444", fontWeight: 600 }}>{liveCount}/6</span>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setShowSources(!showSources)} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#64748b", cursor: "pointer" }}>{showSources ? "Hide" : "Details"}</button>
             <button onClick={() => setShowLog(!showLog)} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#64748b", cursor: "pointer" }}>{showLog ? "Hide" : "Log"}</button>
           </div>
         </div>
+        {showSources && (
+          <div style={{ display: "flex", gap: mob ? 8 : 14, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: "1px solid #1e293b" }}>
+            <SourceDot status={sources.binance} label="Binance" mobile={mob} />
+            <SourceDot status={sources.coingecko} label="CoinGecko" mobile={mob} />
+            <SourceDot status={sources.coincap} label="CoinCap" mobile={mob} />
+            <SourceDot status={sources.cryptocompare} label="CryptoCompare" mobile={mob} />
+            <SourceDot status={sources.kraken} label="Kraken" mobile={mob} />
+            <SourceDot status={sources.feargreed} label="Fear&Greed" mobile={mob} />
+          </div>
+        )}
       </div>
 
       {/* Fetch Log */}
       {showLog && (
-        <div style={{ background: "#0d1117", border: "1px solid #1e293b", borderRadius: 8, padding: "10px 14px", marginBottom: 6, maxHeight: 150, overflowY: "auto", fontSize: 11, fontFamily: "monospace" }}>
+        <div style={{ background: "#0d1117", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", marginBottom: 6, maxHeight: 120, overflowY: "auto", fontSize: 10, fontFamily: "monospace" }}>
           {fetchLog.length === 0
             ? <span style={{ color: "#64748b" }}>No logs yet...</span>
             : fetchLog.map((l, i) => (
@@ -415,67 +455,60 @@ export default function CryptoDashboard() {
         </div>
       )}
 
-      {/* Market Summary */}
       {hasPrices && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 24, marginTop: 14 }}>
+          {/* Market Summary */}
+          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(auto-fit, minmax(170px, 1fr))", gap: mob ? 8 : 12, marginBottom: mob ? 16 : 24, marginTop: mob ? 10 : 14 }}>
             {[
-              { label: "Total Market Cap", value: `$${totalMktCap}T`, sub: `${mktCapCh >= 0 ? "+" : ""}${mktCapCh.toFixed(1)}%`, up: mktCapCh >= 0 },
+              { label: "Market Cap", value: `$${totalMktCap}T`, sub: `${mktCapCh >= 0 ? "+" : ""}${mktCapCh.toFixed(1)}%`, up: mktCapCh >= 0 },
               { label: "24h Volume", value: `$${totalVol}B`, sub: "", up: true },
-              { label: "BTC Dominance", value: `${btcDom}%`, sub: "", up: true },
-              { label: "ETH Dominance", value: `${ethDom}%`, sub: "", up: true },
+              { label: "BTC Dom", value: `${btcDom}%`, sub: "", up: true },
+              { label: "ETH Dom", value: `${ethDom}%`, sub: "", up: true },
               { label: "Fear & Greed", value: fg.value ? fg.value.toString() : "—", sub: fg.label, color: fgColor },
             ].map((item, i) => (
-              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{item.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#f8fafc" }}>{item.value}</div>
-                {item.sub && <div style={{ fontSize: 12, color: item.color || (item.up ? "#22c55e" : "#ef4444"), marginTop: 2 }}>{item.sub}</div>}
+              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: mob ? 10 : 12, padding: mob ? "10px 12px" : "14px 16px" }}>
+                <div style={{ fontSize: mob ? 9 : 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{item.label}</div>
+                <div style={{ fontSize: mob ? 18 : 22, fontWeight: 700, color: "#f8fafc" }}>{item.value}</div>
+                {item.sub && <div style={{ fontSize: mob ? 10 : 12, color: item.color || (item.up ? "#22c55e" : "#ef4444"), marginTop: 2 }}>{item.sub}</div>}
               </div>
             ))}
           </div>
 
           {/* Top Cryptos */}
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#f8fafc" }}>
-            Top Cryptos <span style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>— {usingFallback ? "Sample Data" : `Aggregated from ${liveCount - 1}+ exchanges`}</span>
+          <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, marginBottom: 10, color: "#f8fafc" }}>
+            Top Cryptos {!mob && <span style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>— {usingFallback ? "Sample Data" : `${liveCount - 1}+ exchanges`}</span>}
           </h2>
-          <div style={{ overflowX: "auto", marginBottom: 28 }}>
-            <div style={{ display: "flex", gap: 12, paddingBottom: 4 }}>
+          <div style={{ overflowX: "auto", marginBottom: mob ? 20 : 28, WebkitOverflowScrolling: "touch" }}>
+            <div style={{ display: "flex", gap: mob ? 8 : 12, paddingBottom: 4 }}>
               {COINS.map(c => {
                 const d = merged[c.id];
                 if (!d?.price) return null;
                 const ch = d.change24h || 0;
                 const col = ch >= 0 ? "#22c55e" : "#ef4444";
                 return (
-                  <div key={c.id} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: "14px 16px", minWidth: 220, flex: "0 0 auto" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+                  <div key={c.id} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: mob ? 10 : 12, padding: mob ? "12px" : "14px 16px", minWidth: mob ? 160 : 220, flex: "0 0 auto" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: "#f8fafc" }}>{c.symbol}</div>
-                        <div style={{ fontSize: 11, color: "#64748b" }}>{c.name}</div>
+                        <div style={{ fontWeight: 700, fontSize: mob ? 14 : 15, color: "#f8fafc" }}>{c.symbol}</div>
+                        <div style={{ fontSize: mob ? 10 : 11, color: "#64748b" }}>{c.name}</div>
                       </div>
-                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: col + "18", color: col, fontWeight: 600 }}>
+                      <span style={{ fontSize: mob ? 10 : 11, padding: "2px 6px", borderRadius: 6, background: col + "18", color: col, fontWeight: 600 }}>
                         {ch >= 0 ? "+" : ""}{ch.toFixed(1)}%
                       </span>
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: "#f8fafc", marginBottom: 4 }}>
+                    <div style={{ fontSize: mob ? 17 : 20, fontWeight: 700, color: "#f8fafc", marginBottom: 4 }}>
                       ${d.price.toLocaleString(undefined, { minimumFractionDigits: d.price < 1 ? 4 : d.price < 100 ? 2 : 0 })}
                     </div>
-                    <div style={{ display: "flex", gap: 6, marginBottom: 6, fontSize: 10, flexWrap: "wrap" }}>
-                      {d.sourceCount > 0 && (
-                        <span style={{ background: "#8b5cf620", color: "#a78bfa", padding: "1px 6px", borderRadius: 4 }}>
-                          {d.sourceCount} source{d.sourceCount > 1 ? "s" : ""}
-                        </span>
-                      )}
-                      {d.priceSpread != null && (
-                        <span style={{ background: parseFloat(d.priceSpread) > 0.1 ? "#f59e0b20" : "#22c55e18", color: parseFloat(d.priceSpread) > 0.1 ? "#f59e0b" : "#22c55e", padding: "1px 6px", borderRadius: 4 }}>
-                          ±{d.priceSpread}%
-                        </span>
-                      )}
-                    </div>
-                    {d.sourceNames.length > 0 && (
-                      <div style={{ fontSize: 9, color: "#475569", marginBottom: 4 }}>{d.sourceNames.join(" · ")}</div>
+                    {!mob && d.sourceCount > 0 && (
+                      <div style={{ display: "flex", gap: 6, marginBottom: 6, fontSize: 10 }}>
+                        <span style={{ background: "#8b5cf620", color: "#a78bfa", padding: "1px 6px", borderRadius: 4 }}>{d.sourceCount} src</span>
+                        {d.priceSpread != null && (
+                          <span style={{ background: parseFloat(d.priceSpread) > 0.1 ? "#f59e0b20" : "#22c55e18", color: parseFloat(d.priceSpread) > 0.1 ? "#f59e0b" : "#22c55e", padding: "1px 6px", borderRadius: 4 }}>±{d.priceSpread}%</span>
+                        )}
+                      </div>
                     )}
-                    <MiniChart data={d.sparkline} color={col} />
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "#64748b" }}>
+                    <MiniChart data={d.sparkline} color={col} mobile={mob} />
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: mob ? 10 : 11, color: "#64748b" }}>
                       <span>Vol: ${d.volume ? (d.volume / 1e9).toFixed(1) + "B" : "—"}</span>
                       <span>H: ${d.high24h?.toLocaleString() || "—"}</span>
                     </div>
@@ -485,89 +518,98 @@ export default function CryptoDashboard() {
             </div>
           </div>
 
-          {/* Trading Ideas */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>
-              Trading Ideas <span style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>— Sorted by Profit Potential</span>
-            </h2>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Trading Ideas Header */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>
+                Trading Ideas
+              </h2>
               {editingAmounts ? (
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input value={tempAmounts} onChange={e => setTempAmounts(e.target.value)} placeholder="e.g. 100, 500, 1000"
-                    style={{ background: "#0a0e17", border: "1px solid #8b5cf6", borderRadius: 8, padding: "6px 12px", fontSize: 12, color: "#f8fafc", width: 180, outline: "none" }} />
-                  <button onClick={handleSaveAmounts} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Save</button>
-                  <button onClick={() => setEditingAmounts(false)} style={{ background: "#1e293b", color: "#94a3b8", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input value={tempAmounts} onChange={e => setTempAmounts(e.target.value)} placeholder="100, 500, 1000"
+                    style={{ background: "#0a0e17", border: "1px solid #8b5cf6", borderRadius: 8, padding: "6px 10px", fontSize: 11, color: "#f8fafc", width: mob ? 120 : 160, outline: "none" }} />
+                  <button onClick={handleSaveAmounts} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>✓</button>
+                  <button onClick={() => setEditingAmounts(false)} style={{ background: "#1e293b", color: "#94a3b8", border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 11, cursor: "pointer" }}>✕</button>
                 </div>
               ) : (
-                <button onClick={() => { setTempAmounts(amounts.join(", ")); setEditingAmounts(true); }} style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "6px 12px", fontSize: 11, cursor: "pointer" }}>
-                  ✏️ Amounts: {amounts.map(a => `$${a.toLocaleString()}`).join(", ")}
+                <button onClick={() => { setTempAmounts(amounts.join(", ")); setEditingAmounts(true); }} style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "5px 10px", fontSize: 10, cursor: "pointer" }}>
+                  ✏️ {amounts.map(a => `$${a}`).join(", ")}
                 </button>
               )}
-              <div style={{ display: "flex", gap: 6 }}>
-                {["all", "breakout", "scalp", "swing"].map(t => (
-                  <button key={t} onClick={() => setTab(t)} style={{
-                    background: tab === t ? "#8b5cf6" : "#1e293b", color: tab === t ? "#fff" : "#94a3b8",
-                    border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textTransform: "capitalize",
-                  }}>{t}</button>
-                ))}
-              </div>
+            </div>
+            {/* Filter Tabs */}
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              {["all", "breakout", "scalp", "swing"].map(t => (
+                <button key={t} onClick={() => setTab(t)} style={{
+                  background: tab === t ? "#8b5cf6" : "#1e293b", color: tab === t ? "#fff" : "#94a3b8",
+                  border: "none", borderRadius: 8, padding: mob ? "7px 14px" : "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", whiteSpace: "nowrap", flex: mob ? "1" : "none",
+                }}>{t}</button>
+              ))}
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 14 }}>
+          {/* Trade Cards */}
+          <div style={{ display: "grid", gap: mob ? 10 : 14 }}>
             {filteredTrades.map((t, i) => (
-              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 14, padding: "18px 20px", position: "relative" }}>
+              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: mob ? 12 : 14, padding: mob ? "14px" : "18px 20px", position: "relative" }}>
                 {i === 0 && (
-                  <div style={{ position: "absolute", top: -1, right: 20, background: "linear-gradient(135deg, #f59e0b, #f97316)", color: "#000", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: "0 0 6px 6px", letterSpacing: 0.5 }}>TOP PICK</div>
+                  <div style={{ position: "absolute", top: -1, right: mob ? 14 : 20, background: "linear-gradient(135deg, #f59e0b, #f97316)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 6px 6px", letterSpacing: 0.5 }}>TOP PICK</div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: 700, fontSize: 18, color: "#f8fafc" }}>{t.symbol}</span>
-                    <span style={{ fontSize: 12, color: "#94a3b8" }}>{t.name}</span>
-                    <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 6, background: t.typeColor + "20", color: t.typeColor, fontWeight: 600 }}>{t.type}</span>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: "#22c55e15", color: "#22c55e", fontWeight: 600 }}>+{t.profitPct.toFixed(1)}%</span>
-                    {t.sourceCount > 0 && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#8b5cf620", color: "#a78bfa" }}>{t.sourceCount} src</span>}
+                {/* Card Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: mob ? 16 : 18, color: "#f8fafc" }}>{t.symbol}</span>
+                    {!mob && <span style={{ fontSize: 12, color: "#94a3b8" }}>{t.name}</span>}
+                    <span style={{ fontSize: mob ? 10 : 11, padding: "2px 8px", borderRadius: 6, background: t.typeColor + "20", color: t.typeColor, fontWeight: 600 }}>{t.type}</span>
+                    <span style={{ fontSize: mob ? 10 : 11, padding: "2px 6px", borderRadius: 6, background: "#22c55e15", color: "#22c55e", fontWeight: 600 }}>+{t.profitPct.toFixed(1)}%</span>
                   </div>
-                  <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, background: "#22c55e18", color: "#22c55e", fontWeight: 600 }}>{t.direction} ↗</span>
+                  <span style={{ fontSize: mob ? 10 : 12, padding: "3px 8px", borderRadius: 6, background: "#22c55e18", color: "#22c55e", fontWeight: 600 }}>{t.direction} ↗</span>
                 </div>
-                <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, margin: "0 0 14px" }}>{t.desc}</p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 12 }}>
+                <p style={{ fontSize: mob ? 12 : 13, color: "#94a3b8", lineHeight: 1.5, margin: "0 0 12px" }}>{t.desc}</p>
+
+                {/* Entry/Target/Stop Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(auto-fit, minmax(140px, 1fr))", gap: mob ? 6 : 10, marginBottom: 10 }}>
                   {[
                     { label: "Entry Zone", value: `$${fmt(t.entryLow)} – $${fmt(t.entryHigh)}`, color: "#8b5cf6" },
                     { label: "Target", value: `$${fmt(t.targetLow)} – $${fmt(t.targetHigh)}`, color: "#22c55e" },
                     { label: "Stop Loss", value: `$${fmt(t.stop)}`, color: "#ef4444" },
                     { label: "Risk/Reward", value: t.rr, color: "#f59e0b" },
                   ].map((item, j) => (
-                    <div key={j} style={{ background: "#0a0e17", borderRadius: 8, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{item.label}</div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: item.color }}>{item.value}</div>
+                    <div key={j} style={{ background: "#0a0e17", borderRadius: 8, padding: mob ? "8px 10px" : "10px 12px" }}>
+                      <div style={{ fontSize: mob ? 9 : 10, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>{item.label}</div>
+                      <div style={{ fontSize: mob ? 12 : 14, fontWeight: 600, color: item.color, wordBreak: "break-all" }}>{item.value}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ marginBottom: 12 }}>
+
+                <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Confidence</div>
                   <ConfidenceBar value={t.confidence} />
                 </div>
-                <TradeExamples trade={t} amounts={amounts} />
+
+                {mob
+                  ? <TradeExamplesMobile trade={t} amounts={amounts} />
+                  : <TradeExamplesDesktop trade={t} amounts={amounts} />
+                }
               </div>
             ))}
           </div>
         </>
       )}
 
-      {/* No data loading state */}
+      {/* Loading */}
       {!hasPrices && (
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>📡</div>
-          <div style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc", marginBottom: 8 }}>Connecting to data sources...</div>
-          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Trying 5 exchanges simultaneously. If all fail, fallback data will load automatically.</div>
+          <div style={{ fontSize: mob ? 16 : 18, fontWeight: 600, color: "#f8fafc", marginBottom: 8 }}>Connecting to data sources...</div>
+          <div style={{ fontSize: 13, color: "#64748b" }}>Trying 5 exchanges. Fallback data loads automatically if needed.</div>
         </div>
       )}
 
       {/* Disclaimer */}
-      <div style={{ marginTop: 28, padding: "14px 18px", background: "#1e293b40", borderRadius: 10, border: "1px solid #1e293b" }}>
-        <p style={{ fontSize: 11, color: "#64748b", margin: 0, lineHeight: 1.6 }}>
-          ⚠️ <strong style={{ color: "#94a3b8" }}>Disclaimer:</strong> This dashboard is for educational and informational purposes only. It does not constitute financial advice. Prices are aggregated from multiple sources (Binance, CoinGecko, CoinCap, CryptoCompare, Kraken) when available. Trade ideas are algorithmically generated and not professional recommendations. Cryptocurrency trading involves significant risk — always do your own research and never invest more than you can afford to lose.
+      <div style={{ marginTop: mob ? 20 : 28, padding: mob ? "12px" : "14px 18px", background: "#1e293b40", borderRadius: 10, border: "1px solid #1e293b" }}>
+        <p style={{ fontSize: mob ? 10 : 11, color: "#64748b", margin: 0, lineHeight: 1.6 }}>
+          ⚠️ <strong style={{ color: "#94a3b8" }}>Disclaimer:</strong> This dashboard is for educational and informational purposes only. It does not constitute financial advice. Prices are aggregated from multiple sources (Binance, CoinGecko, CoinCap, CryptoCompare, Kraken). Trade ideas are algorithmically generated and not professional recommendations. Cryptocurrency trading involves significant risk — always do your own research and never invest more than you can afford to lose.
         </p>
       </div>
     </div>
