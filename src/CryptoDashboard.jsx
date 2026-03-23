@@ -36,6 +36,120 @@ const TRADE_TEMPLATES = {
   dogecoin:{type:"Scalp",typeColor:"#06b6d4",desc:"DOGE momentum picking up with rising social volume. Quick scalp on dips to support.",entryOff:[-0.01,0],targetOff:[0.02,0.03],stopOff:-0.018,confidence:60},
 };
 
+const INTERVALS = [
+  { label: "1m", value: 1 },
+  { label: "5m", value: 5 },
+  { label: "15m", value: 15 },
+  { label: "1h", value: 60 },
+  { label: "4h", value: 240 },
+  { label: "1D", value: 1440 },
+];
+
+function CandlestickChart({ pair, mobile }) {
+  const [candles, setCandles] = useState([]);
+  const [interval, setInterval_] = useState(15);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true); setError(null);
+      try {
+        const r = await safeFetch(`https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}`);
+        if (r.error && r.error.length > 0) throw new Error(r.error[0]);
+        const key = Object.keys(r.result).find(k => k !== "last");
+        if (!key) throw new Error("No data");
+        const raw = r.result[key].slice(-80);
+        if (!cancelled) setCandles(raw.map(c => ({ time: c[0] * 1000, o: parseFloat(c[1]), h: parseFloat(c[2]), l: parseFloat(c[3]), cl: parseFloat(c[4]), vol: parseFloat(c[6]) })));
+      } catch (e) { if (!cancelled) setError(e.message); }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    const iv = window.setInterval(load, interval <= 5 ? 30000 : 60000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [pair, interval]);
+
+  const W = mobile ? 340 : 700, H = mobile ? 200 : 280, padT = 10, padB = 50, padL = 5, padR = 5;
+  const chartH = H - padT - padB;
+
+  if (loading && candles.length === 0) return <div style={{ textAlign: "center", padding: 30, color: "#64748b", fontSize: 12 }}>Loading Kraken OHLC data...</div>;
+  if (error) return <div style={{ textAlign: "center", padding: 20, color: "#ef4444", fontSize: 12 }}>Error: {error}</div>;
+  if (candles.length === 0) return null;
+
+  const allH = candles.map(c => c.h), allL = candles.map(c => c.l);
+  const maxP = Math.max(...allH), minP = Math.min(...allL);
+  const priceRange = maxP - minP || 1;
+  const maxVol = Math.max(...candles.map(c => c.vol)) || 1;
+  const cw = (W - padL - padR) / candles.length;
+  const bw = Math.max(1, cw * 0.6);
+
+  const yP = (p) => padT + chartH * 0.85 * (1 - (p - minP) / priceRange);
+  const yV = (v) => H - padB + 2 + (padB - 12) * (1 - v / maxVol);
+
+  const priceLevels = 5;
+  const priceStep = priceRange / priceLevels;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+        {INTERVALS.map(iv => (
+          <button key={iv.value} onClick={() => setInterval_(iv.value)} style={{
+            background: interval === iv.value ? "#8b5cf6" : "#1e293b", color: interval === iv.value ? "#fff" : "#64748b",
+            border: "none", borderRadius: 6, padding: mobile ? "5px 10px" : "4px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+            flex: mobile ? "1" : "none",
+          }}>{iv.label}</button>
+        ))}
+      </div>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
+          {/* Grid lines */}
+          {Array.from({ length: priceLevels + 1 }).map((_, i) => {
+            const p = minP + priceStep * i;
+            const y = yP(p);
+            return (
+              <g key={i}>
+                <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#1e293b" strokeWidth="0.5" />
+                <text x={W - padR - 2} y={y - 3} fill="#475569" fontSize="9" textAnchor="end">${p >= 1 ? p.toFixed(0) : p.toFixed(4)}</text>
+              </g>
+            );
+          })}
+          {/* Volume bars */}
+          {candles.map((c, i) => {
+            const x = padL + i * cw + cw / 2;
+            const vTop = yV(c.vol);
+            const vBot = H - 10;
+            return <rect key={`v${i}`} x={x - bw / 2} y={vTop} width={bw} height={Math.max(0, vBot - vTop)} fill={c.cl >= c.o ? "#22c55e20" : "#ef444420"} rx="1" />;
+          })}
+          {/* Candle wicks and bodies */}
+          {candles.map((c, i) => {
+            const x = padL + i * cw + cw / 2;
+            const bull = c.cl >= c.o;
+            const color = bull ? "#22c55e" : "#ef4444";
+            const bodyTop = yP(Math.max(c.o, c.cl));
+            const bodyBot = yP(Math.min(c.o, c.cl));
+            const bodyH = Math.max(1, bodyBot - bodyTop);
+            return (
+              <g key={i}>
+                <line x1={x} y1={yP(c.h)} x2={x} y2={yP(c.l)} stroke={color} strokeWidth="1" />
+                <rect x={x - bw / 2} y={bodyTop} width={bw} height={bodyH} fill={bull ? color : color} rx="0.5" />
+              </g>
+            );
+          })}
+          {/* Time labels */}
+          {candles.filter((_, i) => i % (mobile ? 20 : 10) === 0).map((c, idx) => {
+            const i = candles.indexOf(c);
+            const x = padL + i * cw + cw / 2;
+            const d = new Date(c.time);
+            const label = interval >= 1440 ? `${d.getMonth()+1}/${d.getDate()}` : `${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
+            return <text key={`t${idx}`} x={x} y={H - 1} fill="#475569" fontSize="9" textAnchor="middle">{label}</text>;
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function useWindowWidth() {
   const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   useEffect(() => { const h = () => setW(window.innerWidth); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
@@ -197,6 +311,8 @@ export default function CryptoDashboard() {
   const [showLog, setShowLog] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [chartCoin, setChartCoin] = useState("XXBTZUSD");
+  const [showChart, setShowChart] = useState(true);
   const [feeTier, setFeeTier] = useState(0);
   const [showFeeSelect, setShowFeeSelect] = useState(false);
   const [krakenLive, setKrakenLive] = useState({});
@@ -586,6 +702,41 @@ export default function CryptoDashboard() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Candlestick Chart */}
+          <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: mob ? 12 : 14, padding: mob ? 14 : 20, marginBottom: mob ? 20 : 28 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: "#f97316", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>🐙 Kraken Charts</span>
+                <span style={{ fontSize: mob ? 14 : 16, fontWeight: 700, color: "#f8fafc" }}>
+                  {COINS.find(c => c.krakenTicker === chartCoin)?.symbol || "BTC"}/USD
+                </span>
+              </div>
+              <button onClick={() => setShowChart(!showChart)} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "4px 10px", fontSize: 10, color: "#94a3b8", cursor: "pointer" }}>
+                {showChart ? "Collapse" : "Expand"}
+              </button>
+            </div>
+            {/* Coin Selector */}
+            <div style={{ display: "flex", gap: 4, marginBottom: showChart ? 12 : 0, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              {COINS.map(c => {
+                const d = merged[c.id];
+                const ch = d?.change24h || 0;
+                const col = ch >= 0 ? "#22c55e" : "#ef4444";
+                return (
+                  <button key={c.id} onClick={() => { setChartCoin(c.krakenTicker); if (!showChart) setShowChart(true); }} style={{
+                    background: chartCoin === c.krakenTicker ? "#8b5cf620" : "#0a0e17",
+                    border: `1px solid ${chartCoin === c.krakenTicker ? "#8b5cf6" : "#1e293b"}`,
+                    borderRadius: 8, padding: mob ? "6px 10px" : "6px 14px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flex: mob ? "1" : "none",
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: chartCoin === c.krakenTicker ? "#f8fafc" : "#94a3b8" }}>{c.symbol}</span>
+                    <span style={{ fontSize: 10, color: col, fontWeight: 600 }}>{ch >= 0 ? "+" : ""}{ch.toFixed(1)}%</span>
+                  </button>
+                );
+              })}
+            </div>
+            {showChart && <CandlestickChart pair={chartCoin} mobile={mob} />}
           </div>
 
           {/* Trading Ideas Header */}
