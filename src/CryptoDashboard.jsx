@@ -1,480 +1,917 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 const COINS = [
-  { id:"bitcoin",symbol:"BTC",name:"Bitcoin",binance:"BTCUSDT",cc:"BTC",kraken:"XXBTZUSD",krakenWs:"XBT/USD",krakenOhlc:"XXBTZUSD" },
-  { id:"ethereum",symbol:"ETH",name:"Ethereum",binance:"ETHUSDT",cc:"ETH",kraken:"XETHZUSD",krakenWs:"ETH/USD",krakenOhlc:"XETHZUSD" },
-  { id:"solana",symbol:"SOL",name:"Solana",binance:"SOLUSDT",cc:"SOL",kraken:"SOLUSD",krakenWs:"SOL/USD",krakenOhlc:"SOLUSD" },
-  { id:"ripple",symbol:"XRP",name:"Ripple",binance:"XRPUSDT",cc:"XRP",kraken:"XXRPZUSD",krakenWs:"XRP/USD",krakenOhlc:"XXRPZUSD" },
-  { id:"cardano",symbol:"ADA",name:"Cardano",binance:"ADAUSDT",cc:"ADA",kraken:"ADAUSD",krakenWs:"ADA/USD",krakenOhlc:"ADAUSD" },
-  { id:"dogecoin",symbol:"DOGE",name:"Dogecoin",binance:"DOGEUSDT",cc:"DOGE",kraken:"XDGUSD",krakenWs:"DOGE/USD",krakenOhlc:"XDGUSD" },
-  { id:"polkadot",symbol:"DOT",name:"Polkadot",binance:"DOTUSDT",cc:"DOT",kraken:"DOTUSD",krakenWs:"DOT/USD",krakenOhlc:"DOTUSD" },
-  { id:"avalanche-2",symbol:"AVAX",name:"Avalanche",binance:"AVAXUSDT",cc:"AVAX",kraken:"AVAXUSD",krakenWs:"AVAX/USD",krakenOhlc:"AVAXUSD" },
-  { id:"chainlink",symbol:"LINK",name:"Chainlink",binance:"LINKUSDT",cc:"LINK",kraken:"LINKUSD",krakenWs:"LINK/USD",krakenOhlc:"LINKUSD" },
-  { id:"polygon",symbol:"POL",name:"Polygon",binance:"POLUSDT",cc:"POL",kraken:"POLUSD",krakenWs:"POL/USD",krakenOhlc:"POLUSD" },
+  { id: "bitcoin", symbol: "BTC", name: "Bitcoin", binance: "BTCUSDT", cc: "BTC", kraken: "XXBTZUSD", krakenWs: "XBT/USD", krakenOhlc: "XXBTZUSD" },
+  { id: "ethereum", symbol: "ETH", name: "Ethereum", binance: "ETHUSDT", cc: "ETH", kraken: "XETHZUSD", krakenWs: "ETH/USD", krakenOhlc: "XETHZUSD" },
+  { id: "solana", symbol: "SOL", name: "Solana", binance: "SOLUSDT", cc: "SOL", kraken: "SOLUSD", krakenWs: "SOL/USD", krakenOhlc: "SOLUSD" },
+  { id: "ripple", symbol: "XRP", name: "Ripple", binance: "XRPUSDT", cc: "XRP", kraken: "XXRPZUSD", krakenWs: "XRP/USD", krakenOhlc: "XXRPZUSD" },
+  { id: "cardano", symbol: "ADA", name: "Cardano", binance: "ADAUSDT", cc: "ADA", kraken: "ADAUSD", krakenWs: "ADA/USD", krakenOhlc: "ADAUSD" },
+  { id: "dogecoin", symbol: "DOGE", name: "Dogecoin", binance: "DOGEUSDT", cc: "DOGE", kraken: "XDGUSD", krakenWs: "DOGE/USD", krakenOhlc: "XDGUSD" },
+  { id: "polkadot", symbol: "DOT", name: "Polkadot", binance: "DOTUSDT", cc: "DOT", kraken: "DOTUSD", krakenWs: "DOT/USD", krakenOhlc: "DOTUSD" },
+  { id: "avalanche-2", symbol: "AVAX", name: "Avalanche", binance: "AVAXUSDT", cc: "AVAX", kraken: "AVAXUSD", krakenWs: "AVAX/USD", krakenOhlc: "AVAXUSD" },
+  { id: "chainlink", symbol: "LINK", name: "Chainlink", binance: "LINKUSDT", cc: "LINK", kraken: "LINKUSD", krakenWs: "LINK/USD", krakenOhlc: "LINKUSD" },
+  { id: "polygon", symbol: "POL", name: "Polygon", binance: "POLUSDT", cc: "POL", kraken: "POLUSD", krakenWs: "POL/USD", krakenOhlc: "POLUSD" },
 ];
 
-const KRAKEN_FEE_TIERS = [
-  { label:"Starter",maker:0.16,taker:0.26 },
-  { label:"Intermediate",maker:0.14,taker:0.24 },
-  { label:"Advanced",maker:0.12,taker:0.22 },
-  { label:"Pro",maker:0.08,taker:0.18 },
-  { label:"Expert",maker:0.04,taker:0.14 },
-  { label:"Elite",maker:0.00,taker:0.10 },
+const FEE_TIERS = [
+  { label: "Starter", maker: 0.16, taker: 0.26 },
+  { label: "Intermediate", maker: 0.14, taker: 0.24 },
+  { label: "Advanced", maker: 0.12, taker: 0.22 },
+  { label: "Pro", maker: 0.08, taker: 0.18 },
+  { label: "Expert", maker: 0.04, taker: 0.14 },
+  { label: "Elite", maker: 0.00, taker: 0.10 },
 ];
 
-const FALLBACK = { bitcoin:{price:84250,change:-0.8,high:85600,low:83100,vol:28.5}, ethereum:{price:1835,change:1.2,high:1870,low:1810,vol:9.8}, solana:{price:138.5,change:-2.1,high:143.2,low:136.8,vol:3.2}, ripple:{price:2.34,change:3.5,high:2.41,low:2.22,vol:2.8}, cardano:{price:0.71,change:-0.4,high:0.73,low:0.69,vol:0.8}, dogecoin:{price:0.168,change:1.8,high:0.174,low:0.162,vol:1.4}, "polkadot":{price:4.12,change:0.6,high:4.25,low:4.02,vol:0.5}, "avalanche-2":{price:21.4,change:-1.5,high:22.1,low:20.9,vol:0.7}, "chainlink":{price:13.8,change:2.3,high:14.1,low:13.4,vol:0.9}, "polygon":{price:0.22,change:-0.3,high:0.225,low:0.215,vol:0.3} };
+const FALLBACK_DATA = {
+  bitcoin: { price: 84250, change: -0.8, high: 85600, low: 83100, vol: 28.5 },
+  ethereum: { price: 1835, change: 1.2, high: 1870, low: 1810, vol: 9.8 },
+  solana: { price: 138.5, change: -2.1, high: 143.2, low: 136.8, vol: 3.2 },
+  ripple: { price: 2.34, change: 3.5, high: 2.41, low: 2.22, vol: 2.8 },
+  cardano: { price: 0.71, change: -0.4, high: 0.73, low: 0.69, vol: 0.8 },
+  dogecoin: { price: 0.168, change: 1.8, high: 0.174, low: 0.162, vol: 1.4 },
+  polkadot: { price: 4.12, change: 0.6, high: 4.25, low: 4.02, vol: 0.5 },
+  "avalanche-2": { price: 21.4, change: -1.5, high: 22.1, low: 20.9, vol: 0.7 },
+  chainlink: { price: 13.8, change: 2.3, high: 14.1, low: 13.4, vol: 0.9 },
+  polygon: { price: 0.22, change: -0.3, high: 0.225, low: 0.215, vol: 0.3 },
+};
 
-function useWindowWidth() { const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1200); useEffect(() => { const h = () => setW(window.innerWidth); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []); return w; }
+function fmt(v) {
+  if (v == null || isNaN(v)) return "—";
+  if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (Math.abs(v) >= 1) return v.toFixed(2);
+  if (Math.abs(v) >= 0.01) return v.toFixed(4);
+  return v.toFixed(6);
+}
 
-function fmt(v) { if (v == null || isNaN(v)) return "—"; if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); if (Math.abs(v) >= 1) return v.toFixed(2); if (Math.abs(v) >= 0.01) return v.toFixed(4); return v.toFixed(6); }
-function genSparkline(base, change) { const d = []; let v = base * (1 - Math.abs(change) / 100); for (let i = 0; i < 48; i++) { v += v * ((change > 0 ? 0.3 : -0.3) + (Math.random() - 0.5) * 1.2) / 100; d.push(v); } return d; }
+function genSparkline(base, change) {
+  const d = [];
+  let v = base * (1 - Math.abs(change) / 100);
+  for (let i = 0; i < 48; i++) {
+    v += v * ((change > 0 ? 0.3 : -0.3) + (Math.random() - 0.5) * 1.2) / 100;
+    d.push(v);
+  }
+  return d;
+}
 
-function MiniChart({ data, color, mobile }) {
+async function safeFetch(url, timeout) {
+  const ms = timeout || 10000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(function () { ctrl.abort(); }, ms);
+  const resp = await fetch(url, { signal: ctrl.signal, mode: "cors" });
+  clearTimeout(timer);
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  return resp.json();
+}
+
+function MiniChartComponent(props) {
+  var data = props.data;
+  var color = props.color;
+  var mobile = props.mobile;
   if (!data || data.length < 2) return null;
-  const h = mobile ? 35 : 40, w = mobile ? 100 : 120, min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(" ");
-  const gid = `g${Math.random().toString(36).slice(2, 8)}`;
-  return (<svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}><defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.3" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs><polygon points={`0,${h} ${pts} ${w},${h}`} fill={`url(#${gid})`} /><polyline points={pts} fill="none" stroke={color} strokeWidth="2" /></svg>);
+  var h = mobile ? 30 : 36;
+  var w = mobile ? 90 : 110;
+  var min = Math.min.apply(null, data);
+  var max = Math.max.apply(null, data);
+  var range = max - min || 1;
+  var pts = data.map(function (v, i) {
+    return (i / (data.length - 1)) * w + "," + (h - ((v - min) / range) * h);
+  }).join(" ");
+  var gid = "gr" + Math.random().toString(36).slice(2, 8);
+  return (
+    <svg width={w} height={h} viewBox={"0 0 " + w + " " + h}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={"0," + h + " " + pts + " " + w + "," + h} fill={"url(#" + gid + ")"} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" />
+    </svg>
+  );
 }
-function ConfidenceBar({ value }) { return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ flex: 1, height: 6, borderRadius: 3, background: "#1e293b" }}><div style={{ width: `${value}%`, height: "100%", borderRadius: 3, background: value >= 70 ? "#22c55e" : value >= 50 ? "#f59e0b" : "#ef4444" }} /></div><span style={{ fontSize: 12, color: "#94a3b8", minWidth: 32 }}>{value}%</span></div>); }
-function SourceDot({ status, label, mobile }) { const c = status === "live" ? "#22c55e" : status === "error" ? "#ef4444" : "#f59e0b"; return (<div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: mobile ? 10 : 11 }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: c, boxShadow: status === "live" ? `0 0 6px ${c}` : "none", flexShrink: 0 }} /><span style={{ color: status === "live" ? "#94a3b8" : "#64748b" }}>{label}</span></div>); }
 
-function TradeExamplesMobile({ trade, amounts, fees }) {
-  const ep = (trade.entryLow + trade.entryHigh) / 2, tp = (trade.targetLow + trade.targetHigh) / 2, sp = trade.stop;
-  const ef = fees.taker / 100, xf = fees.maker / 100;
-  return (<div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>Examples <span style={{ color: "#f97316", fontWeight: 700 }}>• Fees</span></div><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{amounts.map((amt, i) => { const coins = amt / ep, gt = coins * tp, gs = coins * sp, nt = gt * (1 - xf) - amt * (1 + ef) + amt, ns = gs * (1 - xf) - amt * (1 + ef) + amt; return (<div key={i} style={{ background: "#0a0e17", borderRadius: 10, padding: 12 }}><div style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc", marginBottom: 8 }}>${amt.toLocaleString()}</div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><div><div style={{ fontSize: 10, color: "#64748b" }}>PROFIT</div><div style={{ fontSize: 13, color: "#22c55e", fontWeight: 600 }}>+${fmt(nt)}</div></div><div><div style={{ fontSize: 10, color: "#64748b" }}>LOSS</div><div style={{ fontSize: 13, color: "#ef4444", fontWeight: 600 }}>{fmt(ns)}</div></div></div></div>); })}</div></div>);
+function ConfidenceBarComponent(props) {
+  var value = props.value;
+  var bg = value >= 70 ? "#22c55e" : value >= 50 ? "#f59e0b" : "#ef4444";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#1e293b" }}>
+        <div style={{ width: value + "%", height: "100%", borderRadius: 3, background: bg }} />
+      </div>
+      <span style={{ fontSize: 12, color: "#94a3b8", minWidth: 28 }}>{value}%</span>
+    </div>
+  );
 }
-function TradeExamplesDesktop({ trade, amounts, fees }) {
-  const ep = (trade.entryLow + trade.entryHigh) / 2, tp = (trade.targetLow + trade.targetHigh) / 2, sp = trade.stop;
-  const ef = fees.taker / 100, xf = fees.maker / 100;
-  return (<div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>Examples <span style={{ color: "#f97316", fontWeight: 700 }}>• Fees ({fees.taker}%/{fees.maker}%)</span></div><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ borderBottom: "1px solid #1e293b" }}>{["Invest", "Coins", "Net Profit", "P%", "Net Loss", "L%"].map((h, i) => (<th key={i} style={{ padding: "6px 10px", textAlign: "left", color: "#64748b", fontWeight: 600, fontSize: 10, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>))}</tr></thead><tbody>{amounts.map((amt, i) => { const coins = amt / ep, gt = coins * tp, gs = coins * sp, nt = gt * (1 - xf) - amt * (1 + ef) + amt, ns = gs * (1 - xf) - amt * (1 + ef) + amt, np = (nt / amt) * 100, nl = (ns / amt) * 100; return (<tr key={i} style={{ borderBottom: i < amounts.length - 1 ? "1px solid #1e293b20" : "none" }}><td style={{ padding: "8px 10px", fontWeight: 600, color: "#f8fafc" }}>${amt.toLocaleString()}</td><td style={{ padding: "8px 10px", color: "#94a3b8" }}>{fmt(coins)}</td><td style={{ padding: "8px 10px", color: "#22c55e", fontWeight: 600 }}>+${fmt(nt)}</td><td style={{ padding: "8px 10px", color: "#22c55e", fontWeight: 600 }}>{np.toFixed(1)}%</td><td style={{ padding: "8px 10px", color: "#ef4444", fontWeight: 600 }}>${fmt(Math.abs(ns))}</td><td style={{ padding: "8px 10px", color: "#ef4444", fontWeight: 600 }}>{nl.toFixed(1)}%</td></tr>); })}</tbody></table></div></div>);
+
+function SourceDotComponent(props) {
+  var status = props.status;
+  var label = props.label;
+  var c = status === "live" ? "#22c55e" : status === "error" ? "#ef4444" : "#f59e0b";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10 }}>
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: c, boxShadow: status === "live" ? "0 0 5px " + c : "none" }} />
+      <span style={{ color: status === "live" ? "#94a3b8" : "#64748b" }}>{label}</span>
+    </div>
+  );
 }
 
-async function safeFetch(url, timeout = 10000) { const ctrl = new AbortController(); const id = setTimeout(() => ctrl.abort(), timeout); const resp = await fetch(url, { signal: ctrl.signal, mode: "cors" }); clearTimeout(id); if (!resp.ok) throw new Error("HTTP " + resp.status); return await resp.json(); }
+function TradeChartComponent(props) {
+  var trade = props.trade;
+  var currentPrice = props.currentPrice;
+  var mobile = props.mobile;
+  var hist = trade.priceHistory || [];
+  if (hist.length < 2) {
+    return (
+      <div style={{ background: "#0a0e17", borderRadius: 10, padding: 12, marginTop: 8, textAlign: "center", color: "#64748b", fontSize: 11 }}>
+        Collecting price data... ({hist.length} ticks)
+      </div>
+    );
+  }
+  var W = mobile ? 300 : 500;
+  var H = mobile ? 120 : 150;
+  var pad = 30;
+  var allPrices = hist.map(function (h) { return h.p; });
+  allPrices.push(trade.targetPrice, trade.stopPrice, trade.entryPrice);
+  if (currentPrice) allPrices.push(currentPrice);
+  var maxP = Math.max.apply(null, allPrices);
+  var minP = Math.min.apply(null, allPrices);
+  var range = maxP - minP || 1;
 
+  function yP(p) { return pad + (H - pad * 2) * (1 - (p - minP) / range); }
+
+  var pts = hist.map(function (h, i) {
+    return (pad + (i / (hist.length - 1)) * (W - pad * 2)) + "," + yP(h.p);
+  }).join(" ");
+
+  var entryY = yP(trade.entryPrice);
+  var targetY = yP(trade.targetPrice);
+  var stopY = yP(trade.stopPrice);
+  var pnlColor = currentPrice >= trade.entryPrice ? "#22c55e" : "#ef4444";
+
+  return (
+    <div style={{ background: "#0a0e17", borderRadius: 10, padding: 10, marginTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6 }}>TRADE MONITOR — {hist.length} ticks</div>
+      <svg width={W} height={H} viewBox={"0 0 " + W + " " + H} style={{ display: "block", width: "100%", height: "auto" }}>
+        <rect x={pad} y={targetY} width={W - pad * 2} height={Math.max(1, entryY - targetY)} fill="#22c55e08" />
+        <rect x={pad} y={entryY} width={W - pad * 2} height={Math.max(1, stopY - entryY)} fill="#ef444408" />
+        <line x1={pad} y1={targetY} x2={W - pad} y2={targetY} stroke="#22c55e" strokeWidth="1" strokeDasharray="4,3" />
+        <line x1={pad} y1={entryY} x2={W - pad} y2={entryY} stroke="#8b5cf6" strokeWidth="1" strokeDasharray="4,3" />
+        <line x1={pad} y1={stopY} x2={W - pad} y2={stopY} stroke="#ef4444" strokeWidth="1" strokeDasharray="4,3" />
+        <text x={4} y={targetY + 4} fill="#22c55e" fontSize="9">TP</text>
+        <text x={4} y={entryY + 4} fill="#8b5cf6" fontSize="9">Entry</text>
+        <text x={4} y={stopY + 4} fill="#ef4444" fontSize="9">SL</text>
+        <text x={W - pad + 4} y={targetY + 4} fill="#22c55e" fontSize="8">{"$" + fmt(trade.targetPrice)}</text>
+        <text x={W - pad + 4} y={entryY + 4} fill="#8b5cf6" fontSize="8">{"$" + fmt(trade.entryPrice)}</text>
+        <text x={W - pad + 4} y={stopY + 4} fill="#ef4444" fontSize="8">{"$" + fmt(trade.stopPrice)}</text>
+        <polyline points={pts} fill="none" stroke={pnlColor} strokeWidth="2" />
+        <circle cx={pad} cy={entryY} r="4" fill="#8b5cf6" />
+        {currentPrice != null && (
+          <circle cx={pad + (hist.length - 1) / Math.max(hist.length - 1, 1) * (W - pad * 2)} cy={yP(currentPrice)} r="5" fill={pnlColor} stroke="#0a0e17" strokeWidth="2" />
+        )}
+      </svg>
+    </div>
+  );
+}
+
+function TradeExamplesComponent(props) {
+  var trade = props.trade;
+  var amounts = props.amounts;
+  var fees = props.fees;
+  var mobile = props.mobile;
+  var ep = (trade.entryLow + trade.entryHigh) / 2;
+  var tp = (trade.targetLow + trade.targetHigh) / 2;
+  var sp = trade.stop;
+  var ef = fees.taker / 100;
+  var xf = fees.maker / 100;
+
+  if (mobile) {
+    return (
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+          Examples <span style={{ color: "#f97316", fontWeight: 700 }}>• Fees</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {amounts.map(function (amt, i) {
+            var coins = amt / ep;
+            var nt = coins * tp * (1 - xf) - amt * (1 + ef) + amt;
+            var ns = coins * sp * (1 - xf) - amt * (1 + ef) + amt;
+            return (
+              <div key={i} style={{ background: "#0a0e17", borderRadius: 8, padding: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f8fafc", marginBottom: 6 }}>${amt.toLocaleString()}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <div><div style={{ fontSize: 9, color: "#64748b" }}>PROFIT</div><div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>+${fmt(nt)}</div></div>
+                  <div><div style={{ fontSize: 9, color: "#64748b" }}>LOSS</div><div style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>${fmt(ns)}</div></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+        Examples <span style={{ color: "#f97316", fontWeight: 700 }}>• Fees ({fees.taker}%/{fees.maker}%)</span>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #1e293b" }}>
+              {["Invest", "Coins", "Net Profit", "P%", "Net Loss", "L%"].map(function (h, idx) {
+                return (<th key={idx} style={{ padding: "5px 8px", textAlign: "left", color: "#64748b", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>);
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {amounts.map(function (amt, i) {
+              var coins = amt / ep;
+              var nt = coins * tp * (1 - xf) - amt * (1 + ef) + amt;
+              var ns = coins * sp * (1 - xf) - amt * (1 + ef) + amt;
+              var np = (nt / amt) * 100;
+              var nl = (ns / amt) * 100;
+              return (
+                <tr key={i} style={{ borderBottom: i < amounts.length - 1 ? "1px solid #1e293b20" : "none" }}>
+                  <td style={{ padding: "6px 8px", fontWeight: 600, color: "#f8fafc" }}>${amt.toLocaleString()}</td>
+                  <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{fmt(coins)}</td>
+                  <td style={{ padding: "6px 8px", color: "#22c55e", fontWeight: 600 }}>+${fmt(nt)}</td>
+                  <td style={{ padding: "6px 8px", color: "#22c55e", fontWeight: 600 }}>{np.toFixed(1)}%</td>
+                  <td style={{ padding: "6px 8px", color: "#ef4444", fontWeight: 600 }}>${fmt(Math.abs(ns))}</td>
+                  <td style={{ padding: "6px 8px", color: "#ef4444", fontWeight: 600 }}>{nl.toFixed(1)}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ===== ANALYSIS =====
 function analyzeOhlc(candles) {
   if (!candles || candles.length < 10) return null;
-  const recent = candles.slice(-14); let atrSum = 0;
-  for (let i = 1; i < recent.length; i++) { const h = recent[i][2], l = recent[i][3], pc = recent[i - 1][4]; atrSum += Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)); }
-  const atr = atrSum / (recent.length - 1);
-  const closes = candles.map(c => parseFloat(c[4])), highs = candles.map(c => parseFloat(c[2])), lows = candles.map(c => parseFloat(c[3]));
-  const last20H = highs.slice(-20), last20L = lows.slice(-20);
-  const allLevels = [...last20H, ...last20L].sort((a, b) => a - b);
-  const price = closes[closes.length - 1], threshold = price * 0.003;
-  const clusters = []; let cluster = [allLevels[0]];
-  for (let i = 1; i < allLevels.length; i++) { if (allLevels[i] - allLevels[i - 1] < threshold) cluster.push(allLevels[i]); else { if (cluster.length >= 2) clusters.push(cluster.reduce((a, b) => a + b, 0) / cluster.length); cluster = [allLevels[i]]; } }
-  if (cluster.length >= 2) clusters.push(cluster.reduce((a, b) => a + b, 0) / cluster.length);
-  const supports = clusters.filter(c => c < price).sort((a, b) => b - a);
-  const resistances = clusters.filter(c => c > price).sort((a, b) => a - b);
-  const support = supports[0] || price * 0.985, resistance = resistances[0] || price * 1.015;
-  const volatilityPct = (atr / price) * 100;
-  const sma10 = closes.slice(-10).reduce((a, b) => a + b, 0) / 10;
-  const momentum = ((price - sma10) / sma10) * 100;
-  let gains = 0, losses = 0; const rp = Math.min(14, closes.length - 1);
-  for (let i = closes.length - rp; i < closes.length; i++) { const diff = closes[i] - closes[i - 1]; if (diff > 0) gains += diff; else losses += Math.abs(diff); }
-  const ag = gains / rp, al = losses / rp, rsi = al === 0 ? 100 : 100 - (100 / (1 + ag / al));
-  return { atr, support, resistance, volatilityPct, momentum, rsi, price, sma10 };
+  var recent = candles.slice(-14);
+  var atrSum = 0;
+  for (var i = 1; i < recent.length; i++) {
+    var h = recent[i][2], l = recent[i][3], pc = recent[i - 1][4];
+    atrSum += Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+  }
+  var atr = atrSum / (recent.length - 1);
+  var closes = candles.map(function (c) { return parseFloat(c[4]); });
+  var highs = candles.map(function (c) { return parseFloat(c[2]); });
+  var lows = candles.map(function (c) { return parseFloat(c[3]); });
+  var allLevels = highs.slice(-20).concat(lows.slice(-20)).sort(function (a, b) { return a - b; });
+  var price = closes[closes.length - 1];
+  var threshold = price * 0.003;
+  var clusters = [];
+  var cluster = [allLevels[0]];
+  for (var j = 1; j < allLevels.length; j++) {
+    if (allLevels[j] - allLevels[j - 1] < threshold) { cluster.push(allLevels[j]); }
+    else { if (cluster.length >= 2) clusters.push(cluster.reduce(function (a, b) { return a + b; }, 0) / cluster.length); cluster = [allLevels[j]]; }
+  }
+  if (cluster.length >= 2) clusters.push(cluster.reduce(function (a, b) { return a + b; }, 0) / cluster.length);
+  var sups = clusters.filter(function (c) { return c < price; }).sort(function (a, b) { return b - a; });
+  var ress = clusters.filter(function (c) { return c > price; }).sort(function (a, b) { return a - b; });
+  var sup = sups[0] || price * 0.985;
+  var res = ress[0] || price * 1.015;
+  var volPct = (atr / price) * 100;
+  var sma10 = closes.slice(-10).reduce(function (a, b) { return a + b; }, 0) / 10;
+  var sma20 = closes.slice(-20).reduce(function (a, b) { return a + b; }, 0) / Math.min(20, closes.length);
+  var mom = ((price - sma10) / sma10) * 100;
+  var trend = price > sma20 ? "up" : "down";
+  var gains = 0, losses = 0;
+  var rp = Math.min(14, closes.length - 1);
+  for (var k = closes.length - rp; k < closes.length; k++) {
+    var diff = closes[k] - closes[k - 1];
+    if (diff > 0) gains += diff; else losses += Math.abs(diff);
+  }
+  var rsi = losses === 0 ? 100 : 100 - (100 / (1 + (gains / rp) / (losses / rp)));
+  return { atr: atr, sup: sup, res: res, volPct: volPct, mom: mom, rsi: rsi, price: price, trend: trend };
 }
 
-function generateScalpTrade(coin, md, analysis) {
-  const p = md.price, ch = md.change24h || 0;
-  if (!analysis) { const atr = p * 0.008; const entry = p - atr * 0.3, target = p + atr * 1.2, stop = p - atr * 1.0; const ppct = ((target - entry) / entry) * 100, lpct = Math.abs((stop - entry) / entry) * 100; return { symbol: coin.symbol, name: coin.name, type: "Scalp", typeColor: "#06b6d4", desc: `${coin.symbol} — quick scalp opportunity.`, entryLow: entry, entryHigh: p, targetLow: target * 0.998, targetHigh: target * 1.002, stop, rr: `1:${(ppct / lpct).toFixed(1)}`, confidence: 50, direction: "Long", profitPct: ppct, sourceCount: md.sourceCount || 0, sourceNames: md.sourceNames || [], score: 0.3, bid: md.bid, ask: md.ask, spread: md.spread, atrPct: 0.8, rsi: 50, momentum: ch, supportLevel: p * 0.985, resistanceLevel: p * 1.015, coinId: coin.id }; }
-  const { atr, support, resistance, volatilityPct, momentum, rsi } = analysis;
-  const dS = ((p - support) / p) * 100, dR = ((resistance - p) / p) * 100;
-  let type, tc, desc, eL, eH, tL, tH, stop, conf = 50;
-  if (rsi < 35 && dS < 1.5) { type = "Bounce"; tc = "#22c55e"; desc = `${coin.symbol} oversold (RSI ${rsi.toFixed(0)}) near support $${fmt(support)}. Quick bounce setup.`; eL = support; eH = support + atr * 0.3; tL = p + atr * 0.8; tH = p + atr * 1.2; stop = support - atr * 0.8; conf = 72; }
-  else if (rsi > 65 && dR < 1) { type = "Fade"; tc = "#ef4444"; desc = `${coin.symbol} overbought (RSI ${rsi.toFixed(0)}) near resistance $${fmt(resistance)}. Wait for pullback.`; eL = p - atr * 1.0; eH = p - atr * 0.5; tL = p + atr * 0.3; tH = p + atr * 0.6; stop = p - atr * 1.5; conf = 55; }
-  else if (momentum > 0.5 && volatilityPct > 0.4) { type = "Momentum"; tc = "#8b5cf6"; desc = `${coin.symbol} strong momentum (${momentum.toFixed(1)}% above SMA). Volatility ${volatilityPct.toFixed(1)}% ideal for scalping.`; eL = p - atr * 0.3; eH = p; tL = p + atr * 1.0; tH = p + atr * 1.5; stop = p - atr * 1.0; conf = 68; }
-  else if (dR < 1.5 && momentum > 0) { type = "Breakout"; tc = "#f59e0b"; desc = `${coin.symbol} pushing toward resistance $${fmt(resistance)}. Breakout could trigger quick move.`; eL = resistance * 0.999; eH = resistance * 1.002; tL = resistance + atr * 1.0; tH = resistance + atr * 1.8; stop = resistance - atr * 0.8; conf = 62; }
-  else if (dS < 2 && momentum < 0) { type = "Support"; tc = "#06b6d4"; desc = `${coin.symbol} pulling back toward support $${fmt(support)}. Watch for buyers.`; eL = support * 0.998; eH = support * 1.003; tL = support + atr * 1.0; tH = support + atr * 1.5; stop = support - atr * 1.0; conf = 65; }
-  else { type = "Range"; tc = "#94a3b8"; desc = `${coin.symbol} ranging $${fmt(support)}–$${fmt(resistance)}. Scalp from lower range.`; const mid = (support + resistance) / 2; eL = support + (mid - support) * 0.1; eH = support + (mid - support) * 0.3; tL = mid; tH = mid + (resistance - mid) * 0.3; stop = support - atr * 0.5; conf = 50; }
-  if (ch > 3) conf += 6; else if (ch > 1) conf += 3; if (ch < -3) conf -= 6; if (md.sourceCount >= 4) conf += 4; if (md.spread != null && md.spread < 0.05) conf += 5; if (volatilityPct > 0.3 && volatilityPct < 1.5) conf += 4; if (volatilityPct > 2) conf -= 5;
+function makeTrade(coin, md, type, tc, desc, eL, eH, tL, tH, stop, conf, analysis) {
   conf = Math.max(10, Math.min(95, Math.round(conf)));
-  const ae = (eL + eH) / 2, at = (tL + tH) / 2, ppct = ((at - ae) / ae) * 100, lpct = Math.abs((stop - ae) / ae) * 100, rr = lpct > 0 ? ppct / lpct : 1;
-  const score = (ppct / 5) * 0.4 + (conf / 100) * 0.35 + Math.min(rr / 3, 1) * 0.25;
-  return { symbol: coin.symbol, name: coin.name, type, typeColor: tc, desc, entryLow: eL, entryHigh: eH, targetLow: tL, targetHigh: tH, stop, rr: `1:${rr.toFixed(1)}`, confidence: conf, direction: "Long", profitPct: ppct, sourceCount: md.sourceCount, sourceNames: md.sourceNames, score, bid: md.bid, ask: md.ask, spread: md.spread, atrPct: volatilityPct, rsi, momentum, supportLevel: support, resistanceLevel: resistance, coinId: coin.id };
+  var ae = (eL + eH) / 2;
+  var at = (tL + tH) / 2;
+  var ppct = ((at - ae) / ae) * 100;
+  var lpct = Math.abs((stop - ae) / ae) * 100;
+  var rr = lpct > 0 ? ppct / lpct : 1;
+  var score = (ppct / 6) * 0.35 + (conf / 100) * 0.35 + Math.min(rr / 3, 1) * 0.3;
+  return {
+    symbol: coin.symbol, name: coin.name, type: type, typeColor: tc, desc: desc,
+    entryLow: eL, entryHigh: eH, targetLow: tL, targetHigh: tH, stop: stop,
+    rr: "1:" + rr.toFixed(1), confidence: conf, direction: "Long", profitPct: ppct, score: score,
+    bid: md.bid, ask: md.ask, spread: md.spread,
+    atrPct: analysis ? analysis.volPct : null, rsi: analysis ? analysis.rsi : null,
+    momentum: analysis ? analysis.mom : null, supportLevel: analysis ? analysis.sup : null,
+    resistanceLevel: analysis ? analysis.res : null, trend: analysis ? analysis.trend : null,
+    coinId: coin.id,
+  };
+}
+
+function generateTrades(coin, md, analysis) {
+  var trades = [];
+  var p = md.price;
+  var ch = md.change24h || 0;
+  if (!analysis) {
+    var atr = p * 0.012;
+    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — scalp opportunity.", p - atr * 0.3, p, p + atr * 1.8, p + atr * 2.2, p - atr * 1.2, 55, null));
+    return trades;
+  }
+  var atr2 = analysis.atr;
+  var sup = analysis.sup;
+  var res = analysis.res;
+  var volPct = analysis.volPct;
+  var mom = analysis.mom;
+  var rsi = analysis.rsi;
+  var trend = analysis.trend;
+
+  // Scalp
+  if (volPct > 0.3) {
+    var c1 = 60;
+    if (mom > 0.5) c1 += 8;
+    if (rsi < 60) c1 += 5;
+    if (md.spread != null && md.spread < 0.05) c1 += 5;
+    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4",
+      coin.symbol + " scalp — vol " + volPct.toFixed(1) + "%, " + (mom > 0 ? "bullish" : "bearish") + " momentum. Target " + ((p + atr2 * 2.0 - p) / p * 100).toFixed(1) + "% move.",
+      p - atr2 * 0.4, p, p + atr2 * 1.5, p + atr2 * 2.0, p - atr2 * 1.2, c1, analysis));
+  }
+
+  // Long
+  if (trend === "up" || mom > 0.3) {
+    var c2 = 55;
+    if (trend === "up") c2 += 10;
+    if (rsi < 65) c2 += 5;
+    if (ch > 2) c2 += 5;
+    trades.push(makeTrade(coin, md, "Long", "#22c55e",
+      coin.symbol + " long — " + trend + " trend, targeting " + ((p + atr2 * 4.0 - p) / p * 100).toFixed(1) + "% gain with wider stop.",
+      p - atr2 * 0.5, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.0, p - atr2 * 1.8, c2, analysis));
+  }
+
+  // Breakout
+  if (((res - p) / p) * 100 < 2 && mom > 0) {
+    var c3 = 58;
+    if (volPct > 0.5) c3 += 6;
+    if (ch > 1) c3 += 5;
+    trades.push(makeTrade(coin, md, "Breakout", "#f59e0b",
+      coin.symbol + " breakout — pressing resistance $" + fmt(res) + ". Break could trigger " + ((res + atr2 * 3.5 - res) / res * 100).toFixed(1) + "% run.",
+      res * 0.998, res * 1.005, res + atr2 * 2.5, res + atr2 * 3.5, res - atr2 * 1.2, c3, analysis));
+  }
+
+  // Dip Buy
+  if (rsi < 40 || ch < -2) {
+    var c4 = 52;
+    if (rsi < 30) c4 += 10;
+    if (((p - sup) / p) * 100 < 1.5) c4 += 8;
+    trades.push(makeTrade(coin, md, "Dip Buy", "#8b5cf6",
+      coin.symbol + " dip buy — oversold RSI " + rsi.toFixed(0) + " near support $" + fmt(sup) + ". Aggressive reversal targeting " + ((sup + atr2 * 3.5 - sup) / sup * 100).toFixed(1) + "% bounce.",
+      sup * 0.997, sup * 1.005, sup + atr2 * 2.5, sup + atr2 * 3.5, sup - atr2 * 1.5, c4, analysis));
+  }
+
+  // Momentum
+  if (mom > 1 && volPct > 0.4) {
+    var c5 = 62;
+    if (ch > 3) c5 += 8;
+    if (trend === "up") c5 += 6;
+    trades.push(makeTrade(coin, md, "Momentum", "#f97316",
+      coin.symbol + " momentum — " + mom.toFixed(1) + "% above SMA, " + ch.toFixed(1) + "% 24h. Riding the wave.",
+      p - atr2 * 0.2, p + atr2 * 0.1, p + atr2 * 2.0, p + atr2 * 3.0, p - atr2 * 1.5, c5, analysis));
+  }
+
+  // Reversal
+  if (rsi < 30 && trend === "down" && ch < -3) {
+    var c6 = 45;
+    if (rsi < 25) c6 += 8;
+    trades.push(makeTrade(coin, md, "Reversal", "#ec4899",
+      coin.symbol + " reversal — deeply oversold RSI " + rsi.toFixed(0) + ", down " + Math.abs(ch).toFixed(1) + "%. Contrarian high risk/reward play.",
+      p - atr2 * 0.3, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.5, p - atr2 * 2.0, c6, analysis));
+  }
+
+  if (trades.length === 0) {
+    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — range scalp.", p - atr2 * 0.5, p, p + atr2 * 2.0, p + atr2 * 2.8, p - atr2 * 1.3, 50, analysis));
+  }
+  return trades;
 }
 
 export default function CryptoDashboard() {
-  const width = useWindowWidth(); const mob = width < 640;
-  const [tab, setTab] = useState("all");
-  const [time, setTime] = useState(new Date());
-  const [amounts, setAmounts] = useState([100, 500, 1000]);
-  const [editingAmounts, setEditingAmounts] = useState(false);
-  const [tempAmounts, setTempAmounts] = useState("100, 500, 1000");
-  const [merged, setMerged] = useState({});
-  const [globalData, setGlobalData] = useState(null);
-  const [fearGreed, setFearGreed] = useState(null);
-  const [sources, setSources] = useState({ krakenWs:"loading",coingecko:"loading",binance:"loading",cryptocompare:"loading",feargreed:"loading",krakenOhlc:"loading" });
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [fetchLog, setFetchLog] = useState([]);
-  const [showLog, setShowLog] = useState(false);
-  const [usingFallback, setUsingFallback] = useState(false);
-  const [showSources, setShowSources] = useState(false);
-  const [feeTier, setFeeTier] = useState(0);
-  const [showFeeSelect, setShowFeeSelect] = useState(false);
-  const [krakenLive, setKrakenLive] = useState({});
-  const [wsConnected, setWsConnected] = useState(false);
-  const [wsTickCount, setWsTickCount] = useState(0);
-  const [ohlcData, setOhlcData] = useState({});
-  const wsRef = useRef(null); const krakenLiveRef = useRef({}); const reconnectTimer = useRef(null);
+  var width = useWidth();
+  var mob = width < 640;
+  var st = useState;
 
-  // ===== PAPER TRADING STATE =====
-  const [paperBalance, setPaperBalance] = useState(5000);
-  const [openTrades, setOpenTrades] = useState([]);
-  const [closedTrades, setClosedTrades] = useState([]);
-  const [editingBalance, setEditingBalance] = useState(false);
-  const [tempBalance, setTempBalance] = useState("5000");
-  const [showPortfolio, setShowPortfolio] = useState(true);
-  const [tradeNotif, setTradeNotif] = useState(null);
+  var _tab = st("all"), tab = _tab[0], setTab = _tab[1];
+  var _time = st(new Date()), time = _time[0], setTime = _time[1];
+  var _amounts = st([100, 500, 1000]), amounts = _amounts[0], setAmounts = _amounts[1];
+  var _editAmts = st(false), editAmts = _editAmts[0], setEditAmts = _editAmts[1];
+  var _tmpAmts = st("100, 500, 1000"), tmpAmts = _tmpAmts[0], setTmpAmts = _tmpAmts[1];
+  var _merged = st({}), merged = _merged[0], setMerged = _merged[1];
+  var _globalData = st(null), globalData = _globalData[0], setGlobalData = _globalData[1];
+  var _fearGreed = st(null), fearGreed = _fearGreed[0], setFearGreed = _fearGreed[1];
+  var _sources = st({ krakenWs: "loading", coingecko: "loading", binance: "loading", cryptocompare: "loading", feargreed: "loading", krakenOhlc: "loading" }), sources = _sources[0], setSources = _sources[1];
+  var _ohlcData = st({}), ohlcData = _ohlcData[0], setOhlcData = _ohlcData[1];
+  var _lastUp = st(null), setLastUp = _lastUp[1];
+  var _usingFb = st(false), usingFb = _usingFb[0], setUsingFb = _usingFb[1];
+  var _showSrc = st(false), showSrc = _showSrc[0], setShowSrc = _showSrc[1];
+  var _feeTier = st(0), feeTier = _feeTier[0], setFeeTier = _feeTier[1];
+  var _showFee = st(false), showFee = _showFee[0], setShowFee = _showFee[1];
+  var _wsConn = st(false), wsConn = _wsConn[0], setWsConn = _wsConn[1];
+  var _wsTick = st(0), wsTick = _wsTick[0], setWsTick = _wsTick[1];
+  var _krakenLive = st({}), krakenLive = _krakenLive[0], setKrakenLive = _krakenLive[1];
 
-  const addLog = (msg) => setFetchLog(prev => [{ time: new Date().toLocaleTimeString(), msg }, ...prev].slice(0, 30));
-  const fees = KRAKEN_FEE_TIERS[feeTier];
+  var _balance = st(5000), balance = _balance[0], setBalance = _balance[1];
+  var _openTrades = st([]), openTrades = _openTrades[0], setOpenTrades = _openTrades[1];
+  var _closedTrades = st([]), closedTrades = _closedTrades[0], setClosedTrades = _closedTrades[1];
+  var _editBal = st(false), editBal = _editBal[0], setEditBal = _editBal[1];
+  var _tmpBal = st("5000"), tmpBal = _tmpBal[0], setTmpBal = _tmpBal[1];
+  var _showPort = st(true), showPort = _showPort[0], setShowPort = _showPort[1];
+  var _notif = st(null), notif = _notif[0], setNotif = _notif[1];
+  var _expTrade = st(null), expTrade = _expTrade[0], setExpTrade = _expTrade[1];
 
-  // Paper trade: enter a trade
-  const enterPaperTrade = (trade, investAmt) => {
-    const entryPrice = (trade.entryLow + trade.entryHigh) / 2;
-    const targetPrice = (trade.targetLow + trade.targetHigh) / 2;
-    const fee = investAmt * (fees.taker / 100);
-    const totalCost = investAmt + fee;
-    if (totalCost > paperBalance) { setTradeNotif({ msg: "Insufficient balance!", type: "error" }); setTimeout(() => setTradeNotif(null), 3000); return; }
-    const coins = investAmt / entryPrice;
-    const newTrade = {
-      id: Date.now(), symbol: trade.symbol, coinId: trade.coinId || COINS.find(c => c.symbol === trade.symbol)?.id,
-      type: trade.type, entryPrice, targetPrice, stopPrice: trade.stop, coins, investAmt, entryFee: fee,
-      enteredAt: new Date().toLocaleTimeString(), status: "open",
-    };
-    setPaperBalance(prev => prev - totalCost);
-    setOpenTrades(prev => [...prev, newTrade]);
-    setTradeNotif({ msg: `Opened ${trade.symbol} ${trade.type} — $${investAmt} @ $${fmt(entryPrice)}`, type: "success" });
-    setTimeout(() => setTradeNotif(null), 4000);
-  };
+  var wsRef = useRef(null);
+  var klRef = useRef({});
+  var rcTimer = useRef(null);
+  var fees = FEE_TIERS[feeTier];
 
-  // Close a trade manually
-  const closePaperTrade = (tradeId, reason) => {
-    setOpenTrades(prev => {
-      const trade = prev.find(t => t.id === tradeId);
-      if (!trade) return prev;
-      const currentPrice = merged[trade.coinId]?.price || trade.entryPrice;
-      const grossValue = trade.coins * currentPrice;
-      const exitFee = grossValue * (fees.maker / 100);
-      const netReturn = grossValue - exitFee;
-      const pnl = netReturn - trade.investAmt - trade.entryFee;
-      const pnlPct = (pnl / trade.investAmt) * 100;
-      setPaperBalance(b => b + netReturn);
-      setClosedTrades(ct => [...ct, { ...trade, exitPrice: currentPrice, exitFee, pnl, pnlPct, reason: reason || "Manual", closedAt: new Date().toLocaleTimeString(), status: "closed" }]);
-      setTradeNotif({ msg: `Closed ${trade.symbol} — ${pnl >= 0 ? "+" : ""}$${fmt(pnl)} (${pnlPct.toFixed(1)}%)`, type: pnl >= 0 ? "success" : "error" });
-      setTimeout(() => setTradeNotif(null), 4000);
-      return prev.filter(t => t.id !== tradeId);
-    });
-  };
+  function useWidth() {
+    var _w = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+    useEffect(function () {
+      function h() { _w[1](window.innerWidth); }
+      window.addEventListener("resize", h);
+      return function () { window.removeEventListener("resize", h); };
+    }, []);
+    return _w[0];
+  }
 
-  // Auto-close trades that hit target or stop
-  useEffect(() => {
+  // Price history recording
+  useEffect(function () {
     if (openTrades.length === 0) return;
-    openTrades.forEach(trade => {
-      const currentPrice = merged[trade.coinId]?.price;
-      if (!currentPrice) return;
-      if (currentPrice >= trade.targetPrice) closePaperTrade(trade.id, "Target Hit ✅");
-      else if (currentPrice <= trade.stopPrice) closePaperTrade(trade.id, "Stop-Loss ❌");
+    setOpenTrades(function (prev) {
+      return prev.map(function (t) {
+        var cp = merged[t.coinId] ? merged[t.coinId].price : null;
+        if (!cp) return t;
+        var hist = t.priceHistory || [];
+        if (hist.length === 0 || Date.now() - hist[hist.length - 1].t > 5000) {
+          return Object.assign({}, t, { priceHistory: hist.concat([{ p: cp, t: Date.now() }]).slice(-200) });
+        }
+        return t;
+      });
     });
-  }, [merged, wsTickCount]);
+  }, [wsTick, merged]);
 
-  // Calculate open P&L
-  const openPnl = openTrades.reduce((sum, t) => {
-    const cp = merged[t.coinId]?.price || t.entryPrice;
-    const gv = t.coins * cp, xf = gv * (fees.maker / 100);
-    return sum + (gv - xf - t.investAmt - t.entryFee);
+  // Auto close
+  useEffect(function () {
+    if (openTrades.length === 0) return;
+    openTrades.forEach(function (t) {
+      var cp = merged[t.coinId] ? merged[t.coinId].price : null;
+      if (!cp) return;
+      if (cp >= t.targetPrice) closeTrade(t.id, "Target ✅");
+      else if (cp <= t.stopPrice) closeTrade(t.id, "Stop ❌");
+    });
+  }, [merged, wsTick]);
+
+  function enterTrade(trade, amt) {
+    var ep = (trade.entryLow + trade.entryHigh) / 2;
+    var tp = (trade.targetLow + trade.targetHigh) / 2;
+    var fee = amt * (fees.taker / 100);
+    var cost = amt + fee;
+    if (cost > balance) { setNotif({ m: "Not enough balance!", c: "#ef4444" }); setTimeout(function () { setNotif(null); }, 3000); return; }
+    var coins = amt / ep;
+    setBalance(function (b) { return b - cost; });
+    setOpenTrades(function (prev) {
+      return prev.concat([{
+        id: Date.now(), symbol: trade.symbol, coinId: trade.coinId || COINS.find(function (c) { return c.symbol === trade.symbol; }).id,
+        type: trade.type, entryPrice: ep, targetPrice: tp, stopPrice: trade.stop, coins: coins, investAmt: amt, entryFee: fee,
+        enteredAt: new Date().toLocaleTimeString(), status: "open", priceHistory: [{ p: ep, t: Date.now() }]
+      }]);
+    });
+    setNotif({ m: "Opened " + trade.symbol + " " + trade.type + " — $" + amt, c: "#22c55e" });
+    setTimeout(function () { setNotif(null); }, 3000);
+  }
+
+  function closeTrade(id, reason) {
+    setOpenTrades(function (prev) {
+      var t = prev.find(function (x) { return x.id === id; });
+      if (!t) return prev;
+      var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice;
+      var gv = t.coins * cp;
+      var xf = gv * (fees.maker / 100);
+      var net = gv - xf;
+      var pnl = net - t.investAmt - t.entryFee;
+      var pnlPct = (pnl / t.investAmt) * 100;
+      setBalance(function (b) { return b + net; });
+      setClosedTrades(function (ct) { return ct.concat([Object.assign({}, t, { exitPrice: cp, pnl: pnl, pnlPct: pnlPct, reason: reason || "Manual", closedAt: new Date().toLocaleTimeString() })]); });
+      setNotif({ m: t.symbol + " " + reason + " " + (pnl >= 0 ? "+" : "") + "$" + fmt(pnl), c: pnl >= 0 ? "#22c55e" : "#ef4444" });
+      setTimeout(function () { setNotif(null); }, 3000);
+      if (expTrade === id) setExpTrade(null);
+      return prev.filter(function (x) { return x.id !== id; });
+    });
+  }
+
+  var openPnl = openTrades.reduce(function (s, t) {
+    var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice;
+    return s + (t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee);
   }, 0);
-  const closedPnl = closedTrades.reduce((s, t) => s + t.pnl, 0);
-  const wins = closedTrades.filter(t => t.pnl > 0).length;
-  const totalClosed = closedTrades.length;
-  const winRate = totalClosed > 0 ? ((wins / totalClosed) * 100).toFixed(0) : "—";
-  const invested = openTrades.reduce((s, t) => s + t.investAmt + t.entryFee, 0);
-  const totalEquity = paperBalance + invested + openPnl;
-
-  // Fetch OHLC
-  const fetchOhlc = useCallback(async () => {
-    const results = {}; let success = 0;
-    for (const coin of COINS) { try { const d = await safeFetch(`https://api.kraken.com/0/public/OHLC?pair=${coin.krakenOhlc}&interval=15`); if (d.result) { const key = Object.keys(d.result).find(k => k !== "last"); if (key) { results[coin.id] = d.result[key].slice(-100).map(c => [c[0], parseFloat(c[1]), parseFloat(c[2]), parseFloat(c[3]), parseFloat(c[4]), parseFloat(c[5]), parseFloat(c[6])]); success++; } } await new Promise(r => setTimeout(r, 300)); } catch (e) {} }
-    setOhlcData(results); setSources(prev => ({ ...prev, krakenOhlc: success > 0 ? "live" : "error" })); addLog(`OHLC: ${success}/${COINS.length}`);
-  }, []);
+  var closedPnl = closedTrades.reduce(function (s, t) { return s + t.pnl; }, 0);
+  var wins = closedTrades.filter(function (t) { return t.pnl > 0; }).length;
+  var invested = openTrades.reduce(function (s, t) { return s + t.investAmt + t.entryFee; }, 0);
+  var totalEq = balance + invested + openPnl;
 
   // WebSocket
-  const connectWebSocket = useCallback(() => {
-    try { if (wsRef.current && wsRef.current.readyState < 2) return; const ws = new WebSocket("wss://ws.kraken.com"); wsRef.current = ws;
-      ws.onopen = () => { setWsConnected(true); setSources(prev => ({ ...prev, krakenWs: "live" })); addLog("Kraken WS: Connected"); ws.send(JSON.stringify({ event: "subscribe", pair: COINS.map(c => c.krakenWs), subscription: { name: "ticker" } })); };
-      ws.onmessage = (event) => { try { const d = JSON.parse(event.data); if (Array.isArray(d) && d.length >= 4) { const tk = d[1], pn = d[3]; const coin = COINS.find(c => c.krakenWs === pn); if (coin && tk?.c) { const last = parseFloat(tk.c[0]), open = parseFloat(tk.o[0]); krakenLiveRef.current = { ...krakenLiveRef.current, [coin.id]: { price: last, bid: parseFloat(tk.b[0]), ask: parseFloat(tk.a[0]), high: parseFloat(tk.h[1]), low: parseFloat(tk.l[1]), vol: parseFloat(tk.v[1]) * last, change: ((last - open) / open) * 100, spread: ((parseFloat(tk.a[0]) - parseFloat(tk.b[0])) / last) * 100, ts: Date.now() } }; setKrakenLive({ ...krakenLiveRef.current }); setWsTickCount(prev => prev + 1); } } } catch (e) {} };
-      ws.onclose = () => { setWsConnected(false); setSources(prev => ({ ...prev, krakenWs: "error" })); reconnectTimer.current = setTimeout(connectWebSocket, 5000); };
-      ws.onerror = () => { setSources(prev => ({ ...prev, krakenWs: "error" })); };
-    } catch (e) { setSources(prev => ({ ...prev, krakenWs: "error" })); }
+  var connectWs = useCallback(function () {
+    try {
+      if (wsRef.current && wsRef.current.readyState < 2) return;
+      var ws = new WebSocket("wss://ws.kraken.com");
+      wsRef.current = ws;
+      ws.onopen = function () {
+        setWsConn(true); setSources(function (p) { return Object.assign({}, p, { krakenWs: "live" }); });
+        ws.send(JSON.stringify({ event: "subscribe", pair: COINS.map(function (c) { return c.krakenWs; }), subscription: { name: "ticker" } }));
+      };
+      ws.onmessage = function (e) {
+        try {
+          var d = JSON.parse(e.data);
+          if (Array.isArray(d) && d.length >= 4) {
+            var tk = d[1], pn = d[3];
+            var coin = COINS.find(function (c) { return c.krakenWs === pn; });
+            if (coin && tk && tk.c) {
+              var last = parseFloat(tk.c[0]), open = parseFloat(tk.o[0]);
+              klRef.current = Object.assign({}, klRef.current);
+              klRef.current[coin.id] = { price: last, bid: parseFloat(tk.b[0]), ask: parseFloat(tk.a[0]), high: parseFloat(tk.h[1]), low: parseFloat(tk.l[1]), vol: parseFloat(tk.v[1]) * last, change: ((last - open) / open) * 100, spread: ((parseFloat(tk.a[0]) - parseFloat(tk.b[0])) / last) * 100, ts: Date.now() };
+              setKrakenLive(Object.assign({}, klRef.current));
+              setWsTick(function (p) { return p + 1; });
+            }
+          }
+        } catch (err) { /* ignore */ }
+      };
+      ws.onclose = function () { setWsConn(false); setSources(function (p) { return Object.assign({}, p, { krakenWs: "error" }); }); rcTimer.current = setTimeout(connectWs, 5000); };
+      ws.onerror = function () { setSources(function (p) { return Object.assign({}, p, { krakenWs: "error" }); }); };
+    } catch (err) { /* ignore */ }
   }, []);
 
-  useEffect(() => { connectWebSocket(); return () => { if (wsRef.current) wsRef.current.close(); if (reconnectTimer.current) clearTimeout(reconnectTimer.current); }; }, [connectWebSocket]);
+  useEffect(function () { connectWs(); return function () { if (wsRef.current) wsRef.current.close(); if (rcTimer.current) clearTimeout(rcTimer.current); }; }, [connectWs]);
 
-  const applyFallback = useCallback(() => { const m = {}; COINS.forEach(c => { const fb = FALLBACK[c.id]; if (fb) m[c.id] = { price: fb.price, change24h: fb.change, high24h: fb.high, low24h: fb.low, volume: fb.vol * 1e9, sparkline: genSparkline(fb.price, fb.change), sourceCount: 0, sourceNames: ["Fallback"], bid: null, ask: null, spread: null }; }); setMerged(m); setUsingFallback(true); setLastUpdated(new Date()); }, []);
+  var fetchOhlc = useCallback(function () {
+    var doFetch = async function () {
+      var res = {}; var ok = 0;
+      for (var i = 0; i < COINS.length; i++) {
+        try {
+          var d = await safeFetch("https://api.kraken.com/0/public/OHLC?pair=" + COINS[i].krakenOhlc + "&interval=15");
+          if (d.result) { var k = Object.keys(d.result).find(function (x) { return x !== "last"; }); if (k) { res[COINS[i].id] = d.result[k].slice(-100).map(function (c) { return [c[0], parseFloat(c[1]), parseFloat(c[2]), parseFloat(c[3]), parseFloat(c[4]), parseFloat(c[5]), parseFloat(c[6])]; }); ok++; } }
+          await new Promise(function (r) { setTimeout(r, 300); });
+        } catch (e) { /* skip */ }
+      }
+      setOhlcData(res);
+      setSources(function (p) { return Object.assign({}, p, { krakenOhlc: ok > 0 ? "live" : "error" }); });
+    };
+    doFetch();
+  }, []);
 
-  const fetchAll = useCallback(async () => {
-    const pd = {}; COINS.forEach(c => { pd[c.id] = { prices: [], change24h: [], high24h: [], low24h: [], volume: [], sparkline: null, sourceNames: [] }; }); let any = false;
-    COINS.forEach(c => { const kl = krakenLiveRef.current[c.id]; if (kl && Date.now() - kl.ts < 120000) { pd[c.id].prices.push(kl.price); pd[c.id].change24h.push(kl.change); pd[c.id].high24h.push(kl.high); pd[c.id].low24h.push(kl.low); pd[c.id].volume.push(kl.vol); pd[c.id].sourceNames.push("Kraken WS"); any = true; } });
-    try { const d = await safeFetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINS.map(c => c.id).join(",")}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`); d.forEach(c => { if (pd[c.id]) { pd[c.id].prices.push(c.current_price); if (c.price_change_percentage_24h != null) pd[c.id].change24h.push(c.price_change_percentage_24h); if (c.high_24h) pd[c.id].high24h.push(c.high_24h); if (c.low_24h) pd[c.id].low24h.push(c.low_24h); if (c.total_volume) pd[c.id].volume.push(c.total_volume); if (c.sparkline_in_7d?.price) pd[c.id].sparkline = c.sparkline_in_7d.price.slice(-48); pd[c.id].sourceNames.push("CoinGecko"); } }); setSources(prev => ({ ...prev, coingecko: "live" })); any = true; addLog("CoinGecko: OK"); } catch (e) { setSources(prev => ({ ...prev, coingecko: "error" })); }
-    try { const d = await safeFetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(COINS.map(c => c.binance).filter(Boolean))}`); d.forEach(t => { const coin = COINS.find(c => c.binance === t.symbol); if (coin && pd[coin.id]) { pd[coin.id].prices.push(parseFloat(t.lastPrice)); pd[coin.id].change24h.push(parseFloat(t.priceChangePercent)); pd[coin.id].sourceNames.push("Binance"); } }); setSources(prev => ({ ...prev, binance: "live" })); any = true; addLog("Binance: OK"); } catch (e) { setSources(prev => ({ ...prev, binance: "error" })); }
-    try { const d = await safeFetch(`https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${COINS.map(c => c.cc).join(",")}&tsyms=USD`); if (d.RAW) COINS.forEach(c => { const raw = d.RAW[c.cc]?.USD; if (raw && pd[c.id]) { pd[c.id].prices.push(raw.PRICE); if (raw.CHANGEPCT24HOUR != null) pd[c.id].change24h.push(raw.CHANGEPCT24HOUR); pd[c.id].sourceNames.push("CryptoCompare"); } }); setSources(prev => ({ ...prev, cryptocompare: "live" })); any = true; } catch (e) { setSources(prev => ({ ...prev, cryptocompare: "error" })); }
-    try { const d = await safeFetch("https://api.alternative.me/fng/?limit=1"); if (d.data?.[0]) setFearGreed({ value: parseInt(d.data[0].value), label: d.data[0].value_classification }); setSources(prev => ({ ...prev, feargreed: "live" })); } catch (e) { setSources(prev => ({ ...prev, feargreed: "error" })); }
-    try { const d = await safeFetch("https://api.coingecko.com/api/v3/global"); if (d.data) setGlobalData(d.data); } catch (e) {}
-    if (!any) { applyFallback(); return; }
-    setUsingFallback(false);
-    const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-    const m = {}; COINS.forEach(c => { const p = pd[c.id], ap = avg(p.prices), kl = krakenLiveRef.current[c.id]; if (!ap) return; m[c.id] = { price: ap, change24h: avg(p.change24h), high24h: p.high24h.length ? Math.max(...p.high24h) : null, low24h: p.low24h.length ? Math.min(...p.low24h) : null, volume: avg(p.volume), sparkline: p.sparkline || genSparkline(ap, avg(p.change24h) || 0), sourceCount: p.prices.length, sourceNames: [...new Set(p.sourceNames)], bid: kl?.bid || null, ask: kl?.ask || null, spread: kl?.spread || null }; });
-    setMerged(m); setLastUpdated(new Date());
-  }, [applyFallback]);
+  var fetchAll = useCallback(function () {
+    var doFetch = async function () {
+      var pd = {};
+      COINS.forEach(function (c) { pd[c.id] = { prices: [], change24h: [], high24h: [], low24h: [], volume: [], sparkline: null, sourceNames: [] }; });
+      var any = false;
 
-  useEffect(() => { fetchAll(); fetchOhlc(); const iv = setInterval(fetchAll, 60000); const iv2 = setInterval(fetchOhlc, 300000); return () => { clearInterval(iv); clearInterval(iv2); }; }, []);
-  useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { if (Object.keys(krakenLive).length === 0) return; setMerged(prev => { const next = { ...prev }; COINS.forEach(c => { const kl = krakenLive[c.id]; if (kl && next[c.id]) { next[c.id] = { ...next[c.id], bid: kl.bid, ask: kl.ask, spread: kl.spread }; if (kl.ts > (next[c.id]._wsTs || 0)) { next[c.id].price = next[c.id].price ? (next[c.id].price * 0.4 + kl.price * 0.6) : kl.price; next[c.id].change24h = kl.change; next[c.id]._wsTs = kl.ts; } } }); return next; }); }, [wsTickCount]);
+      COINS.forEach(function (c) {
+        var kl = klRef.current[c.id];
+        if (kl && Date.now() - kl.ts < 120000) {
+          pd[c.id].prices.push(kl.price); pd[c.id].change24h.push(kl.change); pd[c.id].high24h.push(kl.high); pd[c.id].low24h.push(kl.low); pd[c.id].volume.push(kl.vol); pd[c.id].sourceNames.push("WS"); any = true;
+        }
+      });
 
-  const liveCount = Object.values(sources).filter(s => s === "live").length;
-  const hasPrices = Object.values(merged).some(m => m.price != null);
-  const buildTrades = () => COINS.map(c => { const d = merged[c.id]; if (!d?.price) return null; return generateScalpTrade(c, d, analyzeOhlc(ohlcData[c.id] || null)); }).filter(Boolean).sort((a, b) => b.score - a.score);
-  const trades = buildTrades();
-  const tradeTypes = ["all", ...new Set(trades.map(t => t.type.toLowerCase()))];
-  const filteredTrades = tab === "all" ? trades : trades.filter(t => t.type.toLowerCase() === tab);
-  const handleSaveAmounts = () => { const p = tempAmounts.split(",").map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0); if (p.length > 0) { setAmounts(p); setEditingAmounts(false); } };
-  const totalMktCap = globalData ? (globalData.total_market_cap?.usd / 1e12).toFixed(2) : "2.84";
-  const totalVol = globalData ? (globalData.total_volume?.usd / 1e9).toFixed(1) : "98.2";
-  const fg = fearGreed || { value: 62, label: "Greed" };
-  const fgColor = fg.value > 55 ? "#22c55e" : fg.value > 45 ? "#f59e0b" : "#ef4444";
+      try {
+        var d = await safeFetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + COINS.map(function (c) { return c.id; }).join(",") + "&order=market_cap_desc&sparkline=true&price_change_percentage=24h");
+        d.forEach(function (c) { if (pd[c.id]) { pd[c.id].prices.push(c.current_price); if (c.price_change_percentage_24h != null) pd[c.id].change24h.push(c.price_change_percentage_24h); if (c.high_24h) pd[c.id].high24h.push(c.high_24h); if (c.total_volume) pd[c.id].volume.push(c.total_volume); if (c.sparkline_in_7d && c.sparkline_in_7d.price) pd[c.id].sparkline = c.sparkline_in_7d.price.slice(-48); pd[c.id].sourceNames.push("CG"); } });
+        setSources(function (p) { return Object.assign({}, p, { coingecko: "live" }); }); any = true;
+      } catch (e) { setSources(function (p) { return Object.assign({}, p, { coingecko: "error" }); }); }
+
+      try {
+        var syms = COINS.map(function (c) { return c.binance; }).filter(Boolean);
+        var d2 = await safeFetch("https://api.binance.com/api/v3/ticker/24hr?symbols=" + JSON.stringify(syms));
+        d2.forEach(function (t) { var coin = COINS.find(function (c) { return c.binance === t.symbol; }); if (coin && pd[coin.id]) { pd[coin.id].prices.push(parseFloat(t.lastPrice)); pd[coin.id].change24h.push(parseFloat(t.priceChangePercent)); pd[coin.id].sourceNames.push("BN"); } });
+        setSources(function (p) { return Object.assign({}, p, { binance: "live" }); }); any = true;
+      } catch (e) { setSources(function (p) { return Object.assign({}, p, { binance: "error" }); }); }
+
+      try {
+        var d3 = await safeFetch("https://min-api.cryptocompare.com/data/pricemultifull?fsyms=" + COINS.map(function (c) { return c.cc; }).join(",") + "&tsyms=USD");
+        if (d3.RAW) COINS.forEach(function (c) { var r = d3.RAW[c.cc] ? d3.RAW[c.cc].USD : null; if (r && pd[c.id]) { pd[c.id].prices.push(r.PRICE); if (r.CHANGEPCT24HOUR != null) pd[c.id].change24h.push(r.CHANGEPCT24HOUR); pd[c.id].sourceNames.push("CC"); } });
+        setSources(function (p) { return Object.assign({}, p, { cryptocompare: "live" }); }); any = true;
+      } catch (e) { setSources(function (p) { return Object.assign({}, p, { cryptocompare: "error" }); }); }
+
+      try { var d4 = await safeFetch("https://api.alternative.me/fng/?limit=1"); if (d4.data && d4.data[0]) setFearGreed({ value: parseInt(d4.data[0].value), label: d4.data[0].value_classification }); setSources(function (p) { return Object.assign({}, p, { feargreed: "live" }); }); } catch (e) { setSources(function (p) { return Object.assign({}, p, { feargreed: "error" }); }); }
+      try { var d5 = await safeFetch("https://api.coingecko.com/api/v3/global"); if (d5.data) setGlobalData(d5.data); } catch (e) { /* skip */ }
+
+      if (!any) {
+        var m = {};
+        COINS.forEach(function (c) { var fb = FALLBACK_DATA[c.id]; if (fb) m[c.id] = { price: fb.price, change24h: fb.change, high24h: fb.high, low24h: fb.low, volume: fb.vol * 1e9, sparkline: genSparkline(fb.price, fb.change), sourceCount: 0, sourceNames: ["FB"], bid: null, ask: null, spread: null }; });
+        setMerged(m); setUsingFb(true); setLastUp(new Date()); return;
+      }
+      setUsingFb(false);
+      function avg(arr) { return arr.length ? arr.reduce(function (a, b) { return a + b; }, 0) / arr.length : null; }
+      var m2 = {};
+      COINS.forEach(function (c) {
+        var p2 = pd[c.id]; var ap = avg(p2.prices); var kl = klRef.current[c.id];
+        if (!ap) return;
+        m2[c.id] = { price: ap, change24h: avg(p2.change24h), high24h: p2.high24h.length ? Math.max.apply(null, p2.high24h) : null, low24h: p2.low24h.length ? Math.min.apply(null, p2.low24h) : null, volume: avg(p2.volume), sparkline: p2.sparkline || genSparkline(ap, avg(p2.change24h) || 0), sourceCount: p2.prices.length, sourceNames: Array.from(new Set(p2.sourceNames)), bid: kl ? kl.bid : null, ask: kl ? kl.ask : null, spread: kl ? kl.spread : null };
+      });
+      setMerged(m2); setLastUp(new Date());
+    };
+    doFetch();
+  }, []);
+
+  useEffect(function () { fetchAll(); fetchOhlc(); var i1 = setInterval(fetchAll, 60000); var i2 = setInterval(fetchOhlc, 300000); return function () { clearInterval(i1); clearInterval(i2); }; }, []);
+  useEffect(function () { var t = setInterval(function () { setTime(new Date()); }, 1000); return function () { clearInterval(t); }; }, []);
+  useEffect(function () {
+    if (!Object.keys(krakenLive).length) return;
+    setMerged(function (prev) {
+      var n = Object.assign({}, prev);
+      COINS.forEach(function (c) { var kl = krakenLive[c.id]; if (kl && n[c.id]) { n[c.id] = Object.assign({}, n[c.id], { bid: kl.bid, ask: kl.ask, spread: kl.spread }); if (kl.ts > (n[c.id]._t || 0)) { n[c.id].price = n[c.id].price ? (n[c.id].price * 0.4 + kl.price * 0.6) : kl.price; n[c.id].change24h = kl.change; n[c.id]._t = kl.ts; } } });
+      return n;
+    });
+  }, [wsTick]);
+
+  var liveCount = Object.values(sources).filter(function (s) { return s === "live"; }).length;
+  var hasPrices = Object.values(merged).some(function (m) { return m.price != null; });
+
+  var allTrades = COINS.flatMap(function (c) {
+    var d = merged[c.id];
+    if (!d || !d.price) return [];
+    return generateTrades(c, d, analyzeOhlc(ohlcData[c.id] || null));
+  }).sort(function (a, b) { return b.score - a.score; });
+
+  var tradeTypes = ["all"].concat(Array.from(new Set(allTrades.map(function (t) { return t.type.toLowerCase(); }))));
+  var filteredTrades = tab === "all" ? allTrades : allTrades.filter(function (t) { return t.type.toLowerCase() === tab; });
+
+  function saveAmts() { var p = tmpAmts.split(",").map(function (s) { return parseFloat(s.trim()); }).filter(function (n) { return !isNaN(n) && n > 0; }); if (p.length > 0) { setAmounts(p); setEditAmts(false); } }
+
+  var fg = fearGreed || { value: 62, label: "Greed" };
+  var fgColor = fg.value > 55 ? "#22c55e" : fg.value > 45 ? "#f59e0b" : "#ef4444";
 
   return (
-    <div style={{ background: "#0a0e17", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'Inter',-apple-system,sans-serif", padding: mob ? "14px" : "20px 24px", WebkitTextSizeAdjust: "100%" }}>
-      {/* Notification Toast */}
-      {tradeNotif && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: tradeNotif.type === "success" ? "#22c55e" : "#ef4444", color: "#fff", padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.5)", maxWidth: "90vw", textAlign: "center" }}>
-          {tradeNotif.msg}
-        </div>
-      )}
+    <div style={{ background: "#0a0e17", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'Inter',-apple-system,sans-serif", padding: mob ? "12px" : "20px 24px", WebkitTextSizeAdjust: "100%" }}>
+      {notif && <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: notif.c, color: "#fff", padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.5)", maxWidth: "90vw", textAlign: "center" }}>{notif.m}</div>}
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: mob ? "flex-start" : "center", marginBottom: mob ? 10 : 16, flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: mob ? "flex-start" : "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h1 style={{ fontSize: mob ? 20 : 24, fontWeight: 700, margin: 0, color: "#f8fafc" }}><span style={{ color: "#8b5cf6" }}>Crypto</span> Day Trader</h1>
-          <p style={{ margin: "4px 0 0", fontSize: mob ? 11 : 13, color: "#64748b" }}>{time.toLocaleDateString("en-US", { weekday: mob ? "short" : "long", month: "short", day: "numeric" })} · {time.toLocaleTimeString()}</p>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>{time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {time.toLocaleTimeString()}</p>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {wsConnected && <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#22c55e15", border: "1px solid #22c55e30", borderRadius: 8, padding: "4px 10px" }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s infinite" }} /><span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600 }}>LIVE</span></div>}
-          <button onClick={() => { fetchAll(); fetchOhlc(); }} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "6px 10px", fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>🔄</button>
+          {wsConn && <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#22c55e15", border: "1px solid #22c55e30", borderRadius: 8, padding: "4px 8px" }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s infinite" }} /><span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600 }}>LIVE</span></div>}
+          <button onClick={function () { fetchAll(); fetchOhlc(); }} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "6px 10px", fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>🔄</button>
         </div>
       </div>
 
-      {/* ===== PAPER TRADING PORTFOLIO ===== */}
-      <div style={{ background: "linear-gradient(135deg, #111827, #0f172a)", border: "1px solid #8b5cf640", borderRadius: 14, padding: mob ? "14px" : "18px 20px", marginBottom: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#8b5cf6" }}>📋 Paper Trading</span>
-            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "#8b5cf620", color: "#a78bfa" }}>SIMULATED</span>
-          </div>
+      {/* Paper Portfolio */}
+      <div style={{ background: "linear-gradient(135deg,#111827,#0f172a)", border: "1px solid #8b5cf640", borderRadius: 14, padding: mob ? "12px" : "16px 20px", marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#8b5cf6" }}>📋 Paper Trading</span>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setShowPortfolio(!showPortfolio)} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#64748b", cursor: "pointer" }}>{showPortfolio ? "Collapse" : "Expand"}</button>
-            <button onClick={() => { setPaperBalance(5000); setOpenTrades([]); setClosedTrades([]); }} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#ef4444", cursor: "pointer" }}>Reset</button>
+            <button onClick={function () { setShowPort(!showPort); }} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#64748b", cursor: "pointer" }}>{showPort ? "−" : "+"}</button>
+            <button onClick={function () { setBalance(5000); setOpenTrades([]); setClosedTrades([]); }} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#ef4444", cursor: "pointer" }}>Reset</button>
           </div>
         </div>
-
-        {/* Portfolio Summary Row */}
-        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(5, 1fr)", gap: 8, marginBottom: showPortfolio && openTrades.length > 0 ? 14 : 0 }}>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Cash</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {editingBalance ? (
-                <div style={{ display: "flex", gap: 4 }}>
-                  <input value={tempBalance} onChange={e => setTempBalance(e.target.value)} style={{ background: "#111827", border: "1px solid #8b5cf6", borderRadius: 6, padding: "4px 8px", fontSize: 14, color: "#f8fafc", width: 90, outline: "none" }} />
-                  <button onClick={() => { const v = parseFloat(tempBalance); if (!isNaN(v) && v >= 0) { setPaperBalance(v); setEditingBalance(false); } }} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}>✓</button>
-                </div>
-              ) : (
-                <><div style={{ fontSize: 18, fontWeight: 700, color: "#f8fafc" }}>${paperBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div><button onClick={() => { setTempBalance(paperBalance.toFixed(0)); setEditingBalance(true); }} style={{ background: "none", border: "none", fontSize: 12, cursor: "pointer", color: "#64748b" }}>✏️</button></>
-              )}
-            </div>
+        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(5,1fr)", gap: 8 }}>
+          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}>
+            <div style={{ fontSize: 9, color: "#64748b" }}>CASH</div>
+            {editBal ? (
+              <div style={{ display: "flex", gap: 4 }}>
+                <input value={tmpBal} onChange={function (e) { setTmpBal(e.target.value); }} style={{ background: "#111827", border: "1px solid #8b5cf6", borderRadius: 6, padding: "2px 6px", fontSize: 14, color: "#f8fafc", width: 80, outline: "none" }} />
+                <button onClick={function () { var v = parseFloat(tmpBal); if (!isNaN(v) && v >= 0) { setBalance(v); setEditBal(false); } }} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}>✓</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${balance.toFixed(2)}</span>
+                <button onClick={function () { setTmpBal(balance.toFixed(0)); setEditBal(true); }} style={{ background: "none", border: "none", fontSize: 11, cursor: "pointer", color: "#64748b" }}>✏️</button>
+              </div>
+            )}
           </div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Equity</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#f8fafc" }}>${totalEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          </div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Open P&L</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: openPnl >= 0 ? "#22c55e" : "#ef4444" }}>{openPnl >= 0 ? "+" : ""}${fmt(openPnl)}</div>
-          </div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Realized P&L</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: closedPnl >= 0 ? "#22c55e" : "#ef4444" }}>{closedPnl >= 0 ? "+" : ""}${fmt(closedPnl)}</div>
-          </div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px" }}>
-            <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Win Rate</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#f8fafc" }}>{winRate}{winRate !== "—" ? "%" : ""} <span style={{ fontSize: 11, color: "#64748b", fontWeight: 400 }}>({wins}/{totalClosed})</span></div>
-          </div>
+          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>EQUITY</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${totalEq.toFixed(2)}</div></div>
+          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>OPEN P&L</div><div style={{ fontSize: 16, fontWeight: 700, color: openPnl >= 0 ? "#22c55e" : "#ef4444" }}>{openPnl >= 0 ? "+" : ""}${fmt(openPnl)}</div></div>
+          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>REALIZED</div><div style={{ fontSize: 16, fontWeight: 700, color: closedPnl >= 0 ? "#22c55e" : "#ef4444" }}>{closedPnl >= 0 ? "+" : ""}${fmt(closedPnl)}</div></div>
+          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>WIN RATE</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>{closedTrades.length > 0 ? ((wins / closedTrades.length) * 100).toFixed(0) + "%" : "—"} <span style={{ fontSize: 10, color: "#64748b" }}>({wins}/{closedTrades.length})</span></div></div>
         </div>
 
-        {/* Open Positions */}
-        {showPortfolio && openTrades.length > 0 && (
-          <div>
-            <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>Open Positions ({openTrades.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {openTrades.map(t => {
-                const cp = merged[t.coinId]?.price || t.entryPrice;
-                const gv = t.coins * cp, xf = gv * (fees.maker / 100);
-                const pnl = gv - xf - t.investAmt - t.entryFee;
-                const pnlPct = (pnl / t.investAmt) * 100;
-                const distTarget = ((t.targetPrice - cp) / cp * 100).toFixed(1);
-                const distStop = ((cp - t.stopPrice) / cp * 100).toFixed(1);
-                return (
-                  <div key={t.id} style={{ background: "#0a0e17", borderRadius: 10, padding: mob ? "10px" : "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {showPort && openTrades.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>Open ({openTrades.length})</div>
+            {openTrades.map(function (t) {
+              var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice;
+              var pnl = t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee;
+              var pnlPct = (pnl / t.investAmt) * 100;
+              var isExp = expTrade === t.id;
+              return (
+                <div key={t.id} style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px", marginBottom: 6, border: "1px solid " + (pnl >= 0 ? "#22c55e20" : "#ef444420") }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6, cursor: "pointer" }} onClick={function () { setExpTrade(isExp ? null : t.id); }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 700, fontSize: 14, color: "#f8fafc" }}>{t.symbol}</span>
                       <span style={{ fontSize: 10, color: "#64748b" }}>{t.type} · ${t.investAmt}</span>
-                      <span style={{ fontSize: 10, color: "#64748b" }}>@ ${fmt(t.entryPrice)}</span>
-                      <span style={{ fontSize: 10, color: "#94a3b8" }}>Now: ${fmt(cp)}</span>
+                      <span style={{ fontSize: 10, color: "#94a3b8" }}>@ ${fmt(t.entryPrice)} → ${fmt(cp)}</span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 10, color: "#22c55e" }}>TP: {distTarget}%</span>
-                      <span style={{ fontSize: 10, color: "#ef4444" }}>SL: {distStop}%</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>{pnl >= 0 ? "+" : ""}${fmt(pnl)} ({pnlPct.toFixed(1)}%)</span>
-                      <button onClick={() => closePaperTrade(t.id, "Manual")} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "4px 10px", fontSize: 10, color: "#ef4444", cursor: "pointer", fontWeight: 600 }}>Close</button>
+                      <button onClick={function (e) { e.stopPropagation(); closeTrade(t.id, "Manual"); }} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#ef4444", cursor: "pointer" }}>Close</button>
+                      <span style={{ fontSize: 10, color: "#64748b" }}>{isExp ? "▲" : "▼"}</span>
                     </div>
+                  </div>
+                  {isExp && <TradeChartComponent trade={t} currentPrice={cp} mobile={mob} />}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showPort && closedTrades.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>History ({closedTrades.length})</div>
+            <div style={{ maxHeight: 100, overflowY: "auto" }}>
+              {closedTrades.slice().reverse().slice(0, 10).map(function (t, i) {
+                return (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, padding: "3px 6px", background: "#111827", borderRadius: 4, marginBottom: 2 }}>
+                    <span style={{ color: "#94a3b8" }}>{t.symbol} {t.type} · ${t.investAmt} · {t.reason}</span>
+                    <span style={{ fontWeight: 600, color: t.pnl >= 0 ? "#22c55e" : "#ef4444" }}>{t.pnl >= 0 ? "+" : ""}${fmt(t.pnl)}</span>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
+      </div>
 
-        {/* Closed Trades Summary */}
-        {showPortfolio && closedTrades.length > 0 && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>Recent Closes</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 120, overflowY: "auto" }}>
-              {closedTrades.slice().reverse().slice(0, 10).map((t, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, padding: "4px 8px", background: "#111827", borderRadius: 6 }}>
-                  <span style={{ color: "#94a3b8" }}>{t.symbol} {t.type} · ${t.investAmt} · {t.reason}</span>
-                  <span style={{ fontWeight: 600, color: t.pnl >= 0 ? "#22c55e" : "#ef4444" }}>{t.pnl >= 0 ? "+" : ""}${fmt(t.pnl)} ({t.pnlPct.toFixed(1)}%)</span>
+      {/* Fees + Sources */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+        <div style={{ background: "#111827", border: "1px solid #f9731630", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+          <span style={{ fontSize: 10, color: "#f97316", fontWeight: 700 }}>🐙</span>
+          <span style={{ fontSize: 10, color: "#94a3b8" }}>{fees.maker}%/{fees.taker}%</span>
+          <button onClick={function () { setShowFee(!showFee); }} style={{ background: "#f9731620", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 9, color: "#f97316", cursor: "pointer", marginLeft: "auto" }}>{showFee ? "Close" : "Change"}</button>
+        </div>
+        <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, color: "#64748b" }}>SRC</span>
+          <span style={{ fontSize: 10, color: liveCount >= 4 ? "#22c55e" : "#f59e0b", fontWeight: 600 }}>{liveCount}/7</span>
+          <button onClick={function () { setShowSrc(!showSrc); }} style={{ background: "none", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 9, color: "#64748b", cursor: "pointer" }}>{showSrc ? "−" : "+"}</button>
+        </div>
+      </div>
+      {showFee && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 6 }}>
+          {FEE_TIERS.map(function (t, i) {
+            return (
+              <button key={i} onClick={function () { setFeeTier(i); setShowFee(false); }} style={{ background: feeTier === i ? "#f9731625" : "#0a0e17", border: "1px solid " + (feeTier === i ? "#f97316" : "#1e293b"), borderRadius: 6, padding: "6px 8px", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: feeTier === i ? "#f97316" : "#94a3b8" }}>{t.label}</div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>{t.maker}%/{t.taker}%</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {showSrc && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", background: "#111827", borderRadius: 8, padding: "8px 12px", marginBottom: 6 }}>
+          <SourceDotComponent status={sources.krakenWs} label="Kraken WS" />
+          <SourceDotComponent status={sources.krakenOhlc} label="OHLC" />
+          <SourceDotComponent status={sources.binance} label="Binance" />
+          <SourceDotComponent status={sources.coingecko} label="CoinGecko" />
+          <SourceDotComponent status={sources.cryptocompare} label="CC" />
+          <SourceDotComponent status={sources.feargreed} label="F&G" />
+        </div>
+      )}
+
+      {usingFb && (
+        <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 10, padding: "8px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, color: "#f59e0b", flex: 1 }}>⚠️ Sample data — host for live</span>
+          <button onClick={fetchAll} style={{ background: "#f59e0b", color: "#000", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Retry</button>
+        </div>
+      )}
+
+      {hasPrices && (
+        <>
+          {/* Market */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12, marginTop: 8 }}>
+            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>MARKET CAP</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${globalData ? (globalData.total_market_cap.usd / 1e12).toFixed(2) : "2.84"}T</div></div>
+            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>24H VOL</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${globalData ? (globalData.total_volume.usd / 1e9).toFixed(1) : "98.2"}B</div></div>
+            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>FEAR & GREED</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>{fg.value || "—"}</div>{fg.label && <div style={{ fontSize: 10, color: fgColor }}>{fg.label}</div>}</div>
+          </div>
+
+          {/* Coins */}
+          <div style={{ overflowX: "auto", marginBottom: 14, WebkitOverflowScrolling: "touch" }}>
+            <div style={{ display: "flex", gap: 8, paddingBottom: 4 }}>
+              {COINS.map(function (c) {
+                var d = merged[c.id];
+                if (!d || !d.price) return null;
+                var ch = d.change24h || 0;
+                var col = ch >= 0 ? "#22c55e" : "#ef4444";
+                return (
+                  <div key={c.id} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "10px", minWidth: mob ? 130 : 170, flex: "0 0 auto" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: "#f8fafc" }}>{c.symbol}</span>
+                      <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 5, background: col + "18", color: col, fontWeight: 600 }}>{ch >= 0 ? "+" : ""}{ch.toFixed(1)}%</span>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc", marginBottom: 3 }}>${d.price.toLocaleString(undefined, { minimumFractionDigits: d.price < 1 ? 4 : d.price < 100 ? 2 : 0 })}</div>
+                    <MiniChartComponent data={d.sparkline} color={col} mobile={mob} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Trade Ideas */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>Trade Ideas <span style={{ fontSize: 11, color: "#64748b", fontWeight: 400 }}>({filteredTrades.length})</span></h2>
+              {editAmts ? (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <input value={tmpAmts} onChange={function (e) { setTmpAmts(e.target.value); }} style={{ background: "#0a0e17", border: "1px solid #8b5cf6", borderRadius: 8, padding: "5px 8px", fontSize: 11, color: "#f8fafc", width: 110, outline: "none" }} />
+                  <button onClick={saveAmts} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "5px 7px", fontSize: 11, cursor: "pointer" }}>✓</button>
+                  <button onClick={function () { setEditAmts(false); }} style={{ background: "#1e293b", color: "#94a3b8", border: "none", borderRadius: 6, padding: "5px 7px", fontSize: 11, cursor: "pointer" }}>✕</button>
                 </div>
-              ))}
+              ) : (
+                <button onClick={function () { setTmpAmts(amounts.join(", ")); setEditAmts(true); }} style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "4px 10px", fontSize: 10, cursor: "pointer" }}>✏️ {amounts.map(function (a) { return "$" + a; }).join(", ")}</button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              {tradeTypes.map(function (tp) {
+                return (
+                  <button key={tp} onClick={function () { setTab(tp); }} style={{ background: tab === tp ? "#8b5cf6" : "#1e293b", color: tab === tp ? "#fff" : "#94a3b8", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", whiteSpace: "nowrap" }}>{tp}</button>
+                );
+              })}
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Kraken Fees */}
-      <div style={{ background: "#111827", border: "1px solid #f9731630", borderRadius: 10, padding: mob ? "8px 12px" : "10px 16px", marginBottom: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 10, color: "#f97316", fontWeight: 700 }}>🐙 Fees</span><span style={{ fontSize: 11, color: "#94a3b8" }}>{fees.maker}% / {fees.taker}%</span></div>
-          <button onClick={() => setShowFeeSelect(!showFeeSelect)} style={{ background: "#f9731620", border: "1px solid #f9731640", borderRadius: 6, padding: "3px 10px", fontSize: 10, color: "#f97316", cursor: "pointer", fontWeight: 600 }}>{showFeeSelect ? "Close" : "Change"}</button>
-        </div>
-        {showFeeSelect && (<div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr", gap: 6, marginTop: 8, paddingTop: 8, borderTop: "1px solid #1e293b" }}>{KRAKEN_FEE_TIERS.map((tier, i) => (<button key={i} onClick={() => { setFeeTier(i); setShowFeeSelect(false); }} style={{ background: feeTier === i ? "#f9731625" : "#0a0e17", border: `1px solid ${feeTier === i ? "#f97316" : "#1e293b"}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", textAlign: "left" }}><div style={{ fontSize: 11, fontWeight: 600, color: feeTier === i ? "#f97316" : "#94a3b8" }}>{tier.label}</div><div style={{ fontSize: 10, color: "#64748b" }}>{tier.maker}% / {tier.taker}%</div></button>))}</div>)}
-      </div>
+          <div style={{ display: "grid", gap: mob ? 10 : 12 }}>
+            {filteredTrades.map(function (t, i) {
+              return (
+                <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: mob ? "12px" : "16px 18px", position: "relative" }}>
+                  {i === 0 && <div style={{ position: "absolute", top: -1, right: 14, background: "linear-gradient(135deg,#f59e0b,#f97316)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 6px 6px" }}>TOP</div>}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 700, fontSize: mob ? 15 : 17, color: "#f8fafc" }}>{t.symbol}</span>
+                      <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: t.typeColor + "20", color: t.typeColor, fontWeight: 600 }}>{t.type}</span>
+                      <span style={{ fontSize: 10, padding: "2px 5px", borderRadius: 6, background: "#22c55e15", color: "#22c55e", fontWeight: 600 }}>+{t.profitPct.toFixed(1)}%</span>
+                      {t.trend && <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 5, background: t.trend === "up" ? "#22c55e15" : "#ef444415", color: t.trend === "up" ? "#22c55e" : "#ef4444" }}>{t.trend === "up" ? "↑ Up" : "↓ Down"}</span>}
+                    </div>
+                  </div>
+                  <p style={{ fontSize: mob ? 11 : 12, color: "#94a3b8", lineHeight: 1.5, margin: "0 0 8px" }}>{t.desc}</p>
 
-      {usingFallback && (<div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 10, padding: "10px 12px", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 12, color: "#f59e0b", flex: 1 }}>⚠️ Sample data. Host for live.</span><button onClick={fetchAll} style={{ background: "#f59e0b", color: "#000", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Retry</button></div>)}
+                  <div style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" }}>
+                    {t.rsi != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>RSI </span><span style={{ color: t.rsi > 70 ? "#ef4444" : t.rsi < 30 ? "#22c55e" : "#f59e0b", fontWeight: 600 }}>{t.rsi.toFixed(0)}</span></span>}
+                    {t.atrPct != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>Vol </span><span style={{ color: "#8b5cf6", fontWeight: 600 }}>{t.atrPct.toFixed(1)}%</span></span>}
+                    {t.supportLevel != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>S:</span><span style={{ color: "#06b6d4", fontWeight: 600 }}>${fmt(t.supportLevel)}</span></span>}
+                    {t.resistanceLevel != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>R:</span><span style={{ color: "#f59e0b", fontWeight: 600 }}>${fmt(t.resistanceLevel)}</span></span>}
+                  </div>
 
-      {/* Sources */}
-      <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: mob ? "8px 12px" : "10px 16px", marginBottom: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 10, color: "#64748b", fontWeight: 600 }}>SOURCES</span><span style={{ fontSize: 11, color: liveCount >= 4 ? "#22c55e" : liveCount >= 2 ? "#f59e0b" : "#ef4444", fontWeight: 600 }}>{liveCount}/7</span></div>
-          <button onClick={() => setShowSources(!showSources)} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#64748b", cursor: "pointer" }}>{showSources ? "Hide" : "Show"}</button>
-        </div>
-        {showSources && (<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: "1px solid #1e293b" }}><SourceDot status={sources.krakenWs} label="Kraken WS" mobile={mob} /><SourceDot status={sources.krakenOhlc} label="OHLC" mobile={mob} /><SourceDot status={sources.binance} label="Binance" mobile={mob} /><SourceDot status={sources.coingecko} label="CoinGecko" mobile={mob} /><SourceDot status={sources.cryptocompare} label="CryptoCompare" mobile={mob} /><SourceDot status={sources.feargreed} label="F&G" mobile={mob} /></div>)}
-      </div>
+                  <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 6, marginBottom: 8 }}>
+                    {[
+                      { l: "Entry", v: "$" + fmt(t.entryLow) + "–" + fmt(t.entryHigh), c: "#8b5cf6" },
+                      { l: "Target", v: "$" + fmt(t.targetLow) + "–" + fmt(t.targetHigh), c: "#22c55e" },
+                      { l: "Stop", v: "$" + fmt(t.stop), c: "#ef4444" },
+                      { l: "R/R", v: t.rr, c: "#f59e0b" },
+                    ].map(function (x, j) {
+                      return (
+                        <div key={j} style={{ background: "#0a0e17", borderRadius: 8, padding: "7px 9px" }}>
+                          <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", marginBottom: 2 }}>{x.l}</div>
+                          <div style={{ fontSize: mob ? 11 : 13, fontWeight: 600, color: x.c, wordBreak: "break-all" }}>{x.v}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-      {hasPrices && (<>
-        {/* Market Summary */}
-        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(auto-fit, minmax(160px, 1fr))", gap: mob ? 8 : 12, marginBottom: mob ? 16 : 24, marginTop: 10 }}>
-          {[{ label: "Market Cap", value: `$${totalMktCap}T` }, { label: "24h Vol", value: `$${totalVol}B` }, { label: "Fear & Greed", value: fg.value ? fg.value.toString() : "—", sub: fg.label, color: fgColor }].map((item, i) => (
-            <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "10px 12px" }}>
-              <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>{item.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#f8fafc" }}>{item.value}</div>
-              {item.sub && <div style={{ fontSize: 10, color: item.color, marginTop: 2 }}>{item.sub}</div>}
-            </div>
-          ))}
-        </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: "#64748b", marginBottom: 3 }}>Confidence</div>
+                    <ConfidenceBarComponent value={t.confidence} />
+                  </div>
 
-        {/* Top Cryptos */}
-        <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, marginBottom: 10, color: "#f8fafc" }}>Top Cryptos</h2>
-        <div style={{ overflowX: "auto", marginBottom: mob ? 16 : 24, WebkitOverflowScrolling: "touch" }}>
-          <div style={{ display: "flex", gap: mob ? 8 : 12, paddingBottom: 4 }}>
-            {COINS.map(c => { const d = merged[c.id]; if (!d?.price) return null; const ch = d.change24h || 0, col = ch >= 0 ? "#22c55e" : "#ef4444"; return (
-              <div key={c.id} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "12px", minWidth: mob ? 145 : 185, flex: "0 0 auto" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><div style={{ fontWeight: 700, fontSize: 14, color: "#f8fafc" }}>{c.symbol}</div><span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 6, background: col + "18", color: col, fontWeight: 600 }}>{ch >= 0 ? "+" : ""}{ch.toFixed(1)}%</span></div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: "#f8fafc", marginBottom: 4 }}>${d.price.toLocaleString(undefined, { minimumFractionDigits: d.price < 1 ? 4 : d.price < 100 ? 2 : 0 })}</div>
-                <MiniChart data={d.sparkline} color={col} mobile={mob} />
-              </div>); })}
-          </div>
-        </div>
+                  {/* Paper Trade Buttons */}
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid #1e293b" }}>
+                    <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 600, display: "flex", alignItems: "center" }}>📋 Paper:</span>
+                    {amounts.map(function (amt) {
+                      var ok = amt + amt * (fees.taker / 100) <= balance;
+                      return (
+                        <button key={amt} onClick={function () { enterTrade(t, amt); }} disabled={!ok} style={{ background: ok ? "#8b5cf620" : "#1e293b", border: "1px solid " + (ok ? "#8b5cf6" : "#334155"), borderRadius: 8, padding: mob ? "7px 12px" : "7px 16px", fontSize: 12, fontWeight: 700, cursor: ok ? "pointer" : "not-allowed", color: ok ? "#f8fafc" : "#475569" }}>
+                          ${amt}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-        {/* Scalp Ideas */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>Scalp Ideas <span style={{ fontSize: 11, color: "#64748b", fontWeight: 400 }}>({trades.length})</span></h2>
-            {editingAmounts ? (
-              <div style={{ display: "flex", gap: 4 }}><input value={tempAmounts} onChange={e => setTempAmounts(e.target.value)} style={{ background: "#0a0e17", border: "1px solid #8b5cf6", borderRadius: 8, padding: "6px 10px", fontSize: 11, color: "#f8fafc", width: mob ? 110 : 150, outline: "none" }} /><button onClick={handleSaveAmounts} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 11, cursor: "pointer" }}>✓</button><button onClick={() => setEditingAmounts(false)} style={{ background: "#1e293b", color: "#94a3b8", border: "none", borderRadius: 6, padding: "6px 8px", fontSize: 11, cursor: "pointer" }}>✕</button></div>
-            ) : (<button onClick={() => { setTempAmounts(amounts.join(", ")); setEditingAmounts(true); }} style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "5px 10px", fontSize: 10, cursor: "pointer" }}>✏️ {amounts.map(a => `$${a}`).join(", ")}</button>)}
-          </div>
-          <div style={{ display: "flex", gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            {tradeTypes.map(t => (<button key={t} onClick={() => setTab(t)} style={{ background: tab === t ? "#8b5cf6" : "#1e293b", color: tab === t ? "#fff" : "#94a3b8", border: "none", borderRadius: 8, padding: mob ? "7px 12px" : "6px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", whiteSpace: "nowrap" }}>{t}</button>))}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gap: mob ? 10 : 14 }}>
-          {filteredTrades.map((t, i) => (
-            <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: mob ? 12 : 14, padding: mob ? "14px" : "18px 20px", position: "relative" }}>
-              {i === 0 && <div style={{ position: "absolute", top: -1, right: mob ? 14 : 20, background: "linear-gradient(135deg, #f59e0b, #f97316)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 6px 6px" }}>TOP PICK</div>}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 700, fontSize: mob ? 16 : 18, color: "#f8fafc" }}>{t.symbol}</span>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: t.typeColor + "20", color: t.typeColor, fontWeight: 600 }}>{t.type}</span>
-                  <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 6, background: "#22c55e15", color: "#22c55e", fontWeight: 600 }}>+{t.profitPct.toFixed(1)}%</span>
+                  {!mob && <TradeExamplesComponent trade={t} amounts={amounts} fees={fees} mobile={false} />}
                 </div>
-              </div>
-              <p style={{ fontSize: mob ? 12 : 13, color: "#94a3b8", lineHeight: 1.5, margin: "0 0 10px" }}>{t.desc}</p>
+              );
+            })}
+          </div>
+        </>
+      )}
 
-              {/* Indicators */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-                {t.rsi != null && <div style={{ background: "#0a0e17", borderRadius: 6, padding: "3px 8px", fontSize: 10 }}><span style={{ color: "#64748b" }}>RSI </span><span style={{ color: t.rsi > 70 ? "#ef4444" : t.rsi < 30 ? "#22c55e" : "#f59e0b", fontWeight: 600 }}>{t.rsi.toFixed(0)}</span></div>}
-                {t.atrPct != null && <div style={{ background: "#0a0e17", borderRadius: 6, padding: "3px 8px", fontSize: 10 }}><span style={{ color: "#64748b" }}>Vol </span><span style={{ color: "#8b5cf6", fontWeight: 600 }}>{t.atrPct.toFixed(2)}%</span></div>}
-                {t.supportLevel != null && <div style={{ background: "#0a0e17", borderRadius: 6, padding: "3px 8px", fontSize: 10 }}><span style={{ color: "#64748b" }}>S: </span><span style={{ color: "#06b6d4", fontWeight: 600 }}>${fmt(t.supportLevel)}</span></div>}
-                {t.resistanceLevel != null && <div style={{ background: "#0a0e17", borderRadius: 6, padding: "3px 8px", fontSize: 10 }}><span style={{ color: "#64748b" }}>R: </span><span style={{ color: "#f59e0b", fontWeight: 600 }}>${fmt(t.resistanceLevel)}</span></div>}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(auto-fit, minmax(130px, 1fr))", gap: mob ? 6 : 10, marginBottom: 10 }}>
-                {[{ label: "Entry", value: `$${fmt(t.entryLow)} – $${fmt(t.entryHigh)}`, color: "#8b5cf6" }, { label: "Target", value: `$${fmt(t.targetLow)} – $${fmt(t.targetHigh)}`, color: "#22c55e" }, { label: "Stop (ATR)", value: `$${fmt(t.stop)}`, color: "#ef4444" }, { label: "R/R", value: t.rr, color: "#f59e0b" }].map((item, j) => (
-                  <div key={j} style={{ background: "#0a0e17", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", marginBottom: 3 }}>{item.label}</div><div style={{ fontSize: mob ? 12 : 14, fontWeight: 600, color: item.color, wordBreak: "break-all" }}>{item.value}</div></div>
-                ))}
-              </div>
-              <div style={{ marginBottom: 10 }}><div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Confidence</div><ConfidenceBar value={t.confidence} /></div>
-
-              {/* ===== PAPER TRADE BUTTONS ===== */}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, padding: "10px 0", borderTop: "1px solid #1e293b" }}>
-                <span style={{ fontSize: 11, color: "#8b5cf6", fontWeight: 600, display: "flex", alignItems: "center" }}>📋 Paper Trade:</span>
-                {amounts.map(amt => (
-                  <button key={amt} onClick={() => enterPaperTrade(t, amt)} disabled={amt + amt * (fees.taker / 100) > paperBalance}
-                    style={{
-                      background: amt + amt * (fees.taker / 100) > paperBalance ? "#1e293b" : "#8b5cf620",
-                      border: `1px solid ${amt + amt * (fees.taker / 100) > paperBalance ? "#334155" : "#8b5cf6"}`,
-                      borderRadius: 8, padding: mob ? "8px 14px" : "8px 18px", fontSize: 12, fontWeight: 700, cursor: amt + amt * (fees.taker / 100) > paperBalance ? "not-allowed" : "pointer",
-                      color: amt + amt * (fees.taker / 100) > paperBalance ? "#475569" : "#f8fafc",
-                    }}>
-                    ${amt.toLocaleString()}
-                  </button>
-                ))}
-              </div>
-
-              {mob ? <TradeExamplesMobile trade={t} amounts={amounts} fees={fees} /> : <TradeExamplesDesktop trade={t} amounts={amounts} fees={fees} />}
-            </div>
-          ))}
+      {!hasPrices && (
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>📡</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>Connecting...</div>
         </div>
-      </>)}
+      )}
 
-      {!hasPrices && (<div style={{ textAlign: "center", padding: "60px 20px" }}><div style={{ fontSize: 40, marginBottom: 16 }}>📡</div><div style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 8 }}>Connecting & analyzing...</div></div>)}
-
-      <div style={{ marginTop: mob ? 20 : 28, padding: "12px", background: "#1e293b40", borderRadius: 10, border: "1px solid #1e293b" }}>
-        <p style={{ fontSize: 10, color: "#64748b", margin: 0, lineHeight: 1.6 }}>⚠️ <strong style={{ color: "#94a3b8" }}>Disclaimer:</strong> Paper trading uses simulated money — no real funds at risk. Trading signals use Kraken OHLC analysis (S/R, ATR, RSI). Not financial advice. Crypto trading involves significant risk — always DYOR.</p>
+      <div style={{ marginTop: 20, padding: "10px", background: "#1e293b40", borderRadius: 10, border: "1px solid #1e293b" }}>
+        <p style={{ fontSize: 10, color: "#64748b", margin: 0, lineHeight: 1.6 }}>⚠️ <strong style={{ color: "#94a3b8" }}>Disclaimer:</strong> Paper trading uses simulated money. Trade signals use Kraken OHLC analysis (S/R, ATR, RSI, momentum, trend). Not financial advice. Crypto involves significant risk.</p>
       </div>
-      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>
     </div>
   );
 }
