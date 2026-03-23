@@ -365,13 +365,37 @@ export default function CryptoDashboard() {
       const st = p * (1 + t.stopOff);
       const ae = (eL + eH) / 2, at = (tL + tH) / 2;
       const ppct = ((at - ae) / ae) * 100, lpct = Math.abs((st - ae) / ae) * 100;
+      const rr = ppct / lpct;
+
+      // Dynamic confidence based on live signals
+      let conf = t.confidence;
+      const ch = d.change24h || 0;
+      // Boost if strong positive momentum
+      if (ch > 3) conf += 8;
+      else if (ch > 1) conf += 4;
+      // Penalize if negative momentum
+      if (ch < -3) conf -= 10;
+      else if (ch < -1) conf -= 5;
+      // Boost for better risk/reward
+      if (rr > 2) conf += 5;
+      else if (rr > 1.5) conf += 2;
+      // Boost for more source agreement (tighter spread = more reliable)
+      if (d.sourceCount >= 4) conf += 4;
+      else if (d.sourceCount >= 2) conf += 2;
+      if (d.priceSpread != null && parseFloat(d.priceSpread) < 0.05) conf += 3;
+      // Clamp between 0–99
+      conf = Math.max(0, Math.min(99, Math.round(conf)));
+
+      // Combined score: 60% profit potential + 40% confidence
+      const score = (ppct / 10) * 0.6 + (conf / 100) * 0.4;
+
       return {
         symbol: c.symbol, name: c.name, type: t.type, typeColor: t.typeColor, desc: t.desc,
         entryLow: eL, entryHigh: eH, targetLow: tL, targetHigh: tH, stop: st,
-        rr: `1:${(ppct / lpct).toFixed(1)}`, confidence: t.confidence, direction: "Long",
-        profitPct: ppct, sourceCount: d.sourceCount, sourceNames: d.sourceNames,
+        rr: `1:${rr.toFixed(1)}`, confidence: conf, direction: "Long",
+        profitPct: ppct, sourceCount: d.sourceCount, sourceNames: d.sourceNames, score,
       };
-    }).filter(Boolean).sort((a, b) => b.profitPct - a.profitPct);
+    }).filter(Boolean).sort((a, b) => b.score - a.score);
   };
 
   const trades = buildTrades();
@@ -522,7 +546,7 @@ export default function CryptoDashboard() {
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>
-                Trading Ideas
+                Trading Ideas {!mob && <span style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>— Ranked by Profit + Confidence</span>}
               </h2>
               {editingAmounts ? (
                 <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
