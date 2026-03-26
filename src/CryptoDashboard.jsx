@@ -1,1017 +1,244 @@
+/* Crypto Day Trader — Full Code for Vercel Deployment
+   Copy this entire file to src/CryptoDashboard.jsx in your GitHub repo */
+
 import { useState, useEffect, useCallback, useRef } from "react";
 
-const COINS = [
-  { id: "bitcoin", symbol: "BTC", name: "Bitcoin", binance: "BTCUSDT", cc: "BTC", kraken: "XXBTZUSD", krakenWs: "XBT/USD", krakenOhlc: "XXBTZUSD" },
-  { id: "ethereum", symbol: "ETH", name: "Ethereum", binance: "ETHUSDT", cc: "ETH", kraken: "XETHZUSD", krakenWs: "ETH/USD", krakenOhlc: "XETHZUSD" },
-  { id: "solana", symbol: "SOL", name: "Solana", binance: "SOLUSDT", cc: "SOL", kraken: "SOLUSD", krakenWs: "SOL/USD", krakenOhlc: "SOLUSD" },
-  { id: "ripple", symbol: "XRP", name: "Ripple", binance: "XRPUSDT", cc: "XRP", kraken: "XXRPZUSD", krakenWs: "XRP/USD", krakenOhlc: "XXRPZUSD" },
-  { id: "cardano", symbol: "ADA", name: "Cardano", binance: "ADAUSDT", cc: "ADA", kraken: "ADAUSD", krakenWs: "ADA/USD", krakenOhlc: "ADAUSD" },
-  { id: "dogecoin", symbol: "DOGE", name: "Dogecoin", binance: "DOGEUSDT", cc: "DOGE", kraken: "XDGUSD", krakenWs: "DOGE/USD", krakenOhlc: "XDGUSD" },
-  { id: "polkadot", symbol: "DOT", name: "Polkadot", binance: "DOTUSDT", cc: "DOT", kraken: "DOTUSD", krakenWs: "DOT/USD", krakenOhlc: "DOTUSD" },
-  { id: "avalanche-2", symbol: "AVAX", name: "Avalanche", binance: "AVAXUSDT", cc: "AVAX", kraken: "AVAXUSD", krakenWs: "AVAX/USD", krakenOhlc: "AVAXUSD" },
-  { id: "chainlink", symbol: "LINK", name: "Chainlink", binance: "LINKUSDT", cc: "LINK", kraken: "LINKUSD", krakenWs: "LINK/USD", krakenOhlc: "LINKUSD" },
-  { id: "polygon", symbol: "POL", name: "Polygon", binance: "POLUSDT", cc: "POL", kraken: "POLUSD", krakenWs: "POL/USD", krakenOhlc: "POLUSD" },
+var COINS = [
+  { id:"bitcoin",symbol:"BTC",name:"Bitcoin",binance:"BTCUSDT",cc:"BTC",krakenWs:"XBT/USD",krakenOhlc:"XXBTZUSD" },
+  { id:"ethereum",symbol:"ETH",name:"Ethereum",binance:"ETHUSDT",cc:"ETH",krakenWs:"ETH/USD",krakenOhlc:"XETHZUSD" },
+  { id:"solana",symbol:"SOL",name:"Solana",binance:"SOLUSDT",cc:"SOL",krakenWs:"SOL/USD",krakenOhlc:"SOLUSD" },
+  { id:"ripple",symbol:"XRP",name:"Ripple",binance:"XRPUSDT",cc:"XRP",krakenWs:"XRP/USD",krakenOhlc:"XXRPZUSD" },
+  { id:"cardano",symbol:"ADA",name:"Cardano",binance:"ADAUSDT",cc:"ADA",krakenWs:"ADA/USD",krakenOhlc:"ADAUSD" },
+  { id:"dogecoin",symbol:"DOGE",name:"Dogecoin",binance:"DOGEUSDT",cc:"DOGE",krakenWs:"DOGE/USD",krakenOhlc:"XDGUSD" },
+  { id:"polkadot",symbol:"DOT",name:"Polkadot",binance:"DOTUSDT",cc:"DOT",krakenWs:"DOT/USD",krakenOhlc:"DOTUSD" },
+  { id:"avalanche-2",symbol:"AVAX",name:"Avalanche",binance:"AVAXUSDT",cc:"AVAX",krakenWs:"AVAX/USD",krakenOhlc:"AVAXUSD" },
+  { id:"chainlink",symbol:"LINK",name:"Chainlink",binance:"LINKUSDT",cc:"LINK",krakenWs:"LINK/USD",krakenOhlc:"LINKUSD" },
+  { id:"polygon",symbol:"POL",name:"Polygon",binance:"POLUSDT",cc:"POL",krakenWs:"POL/USD",krakenOhlc:"POLUSD" }
 ];
-
-const RISK_PROFILES = [
-  { label: "Conservative", emoji: "🛡️", color: "#22c55e", targetMult: 0.7, stopMult: 0.7, desc: "Tighter targets & stops" },
-  { label: "Moderate", emoji: "⚖️", color: "#f59e0b", targetMult: 1.0, stopMult: 1.0, desc: "Balanced risk/reward" },
-  { label: "Aggressive", emoji: "🔥", color: "#ef4444", targetMult: 1.5, stopMult: 1.3, desc: "Wider targets, more risk" },
+var RISK = [
+  { label:"Conservative",emoji:"🛡️",color:"#22c55e",tm:0.7,sm:0.7 },
+  { label:"Moderate",emoji:"⚖️",color:"#f59e0b",tm:1.0,sm:1.0 },
+  { label:"Aggressive",emoji:"🔥",color:"#ef4444",tm:1.5,sm:1.3 }
 ];
-
-const FEE_TIERS = [
-  { label: "Starter", maker: 0.16, taker: 0.26 },
-  { label: "Intermediate", maker: 0.14, taker: 0.24 },
-  { label: "Advanced", maker: 0.12, taker: 0.22 },
-  { label: "Pro", maker: 0.08, taker: 0.18 },
-  { label: "Expert", maker: 0.04, taker: 0.14 },
-  { label: "Elite", maker: 0.00, taker: 0.10 },
+var FTIERS = [
+  { label:"Starter",mk:0.16,tk:0.26 },{ label:"Intermediate",mk:0.14,tk:0.24 },
+  { label:"Advanced",mk:0.12,tk:0.22 },{ label:"Pro",mk:0.08,tk:0.18 },
+  { label:"Expert",mk:0.04,tk:0.14 },{ label:"Elite",mk:0.00,tk:0.10 }
 ];
+var FB = {bitcoin:{p:84250,c:-0.8},ethereum:{p:1835,c:1.2},solana:{p:138.5,c:-2.1},ripple:{p:2.34,c:3.5},cardano:{p:0.71,c:-0.4},dogecoin:{p:0.168,c:1.8},polkadot:{p:4.12,c:0.6},"avalanche-2":{p:21.4,c:-1.5},chainlink:{p:13.8,c:2.3},polygon:{p:0.22,c:-0.3}};
 
-const FALLBACK_DATA = {
-  bitcoin: { price: 84250, change: -0.8, high: 85600, low: 83100, vol: 28.5 },
-  ethereum: { price: 1835, change: 1.2, high: 1870, low: 1810, vol: 9.8 },
-  solana: { price: 138.5, change: -2.1, high: 143.2, low: 136.8, vol: 3.2 },
-  ripple: { price: 2.34, change: 3.5, high: 2.41, low: 2.22, vol: 2.8 },
-  cardano: { price: 0.71, change: -0.4, high: 0.73, low: 0.69, vol: 0.8 },
-  dogecoin: { price: 0.168, change: 1.8, high: 0.174, low: 0.162, vol: 1.4 },
-  polkadot: { price: 4.12, change: 0.6, high: 4.25, low: 4.02, vol: 0.5 },
-  "avalanche-2": { price: 21.4, change: -1.5, high: 22.1, low: 20.9, vol: 0.7 },
-  chainlink: { price: 13.8, change: 2.3, high: 14.1, low: 13.4, vol: 0.9 },
-  polygon: { price: 0.22, change: -0.3, high: 0.225, low: 0.215, vol: 0.3 },
-};
+function fmt(v){if(v==null||isNaN(v))return"—";if(Math.abs(v)>=1000)return v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});if(Math.abs(v)>=1)return v.toFixed(2);if(Math.abs(v)>=0.01)return v.toFixed(4);return v.toFixed(6);}
+function genSpark(b,ch){var d=[],v=b*(1-Math.abs(ch)/100);for(var i=0;i<48;i++){v+=v*((ch>0?0.3:-0.3)+(Math.random()-0.5)*1.2)/100;d.push(v);}return d;}
+async function sf(url){var c=new AbortController();var t=setTimeout(function(){c.abort();},6000);var r=await fetch(url,{signal:c.signal,mode:"cors"});clearTimeout(t);if(!r.ok)throw new Error(r.status);return r.json();}
 
-function fmt(v) {
-  if (v == null || isNaN(v)) return "—";
-  if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (Math.abs(v) >= 1) return v.toFixed(2);
-  if (Math.abs(v) >= 0.01) return v.toFixed(4);
-  return v.toFixed(6);
+/* Storage: works with both window.storage (Claude) and localStorage (Vercel) */
+function sGet(k){return new Promise(function(res){try{var v=localStorage.getItem(k);res(v);}catch(e){res(null);}});}
+function sSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function sDel(k){try{localStorage.removeItem(k);}catch(e){}}
+
+function MiniC(props){var d=props.data,col=props.color,m=props.mobile;if(!d||d.length<2)return null;var h=m?28:34,w=m?85:105;var mn=Math.min.apply(null,d),mx=Math.max.apply(null,d),rg=mx-mn||1;var pts=d.map(function(v,i){return(i/(d.length-1))*w+","+(h-((v-mn)/rg)*h);}).join(" ");var g="g"+Math.random().toString(36).slice(2,7);return(<svg width={w} height={h} viewBox={"0 0 "+w+" "+h}><defs><linearGradient id={g} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={col} stopOpacity="0.3"/><stop offset="100%" stopColor={col} stopOpacity="0"/></linearGradient></defs><polygon points={"0,"+h+" "+pts+" "+w+","+h} fill={"url(#"+g+")"}/><polyline points={pts} fill="none" stroke={col} strokeWidth="2"/></svg>);}
+function ConfBar(props){var v=props.value;var bg=v>=70?"#22c55e":v>=50?"#f59e0b":"#ef4444";return(<div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,borderRadius:3,background:"#1e293b"}}><div style={{width:v+"%",height:"100%",borderRadius:3,background:bg}}/></div><span style={{fontSize:12,color:"#94a3b8",minWidth:28}}>{v}%</span></div>);}
+function SDot(props){var s=props.status,l=props.label;var c=s==="live"?"#22c55e":s==="error"?"#ef4444":"#f59e0b";return(<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}><div style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:s==="live"?"0 0 5px "+c:"none"}}/><span style={{color:s==="live"?"#94a3b8":"#64748b"}}>{l}</span></div>);}
+
+function TChart(props){
+  var tr=props.trade,cp=props.cp,m=props.mobile;var hist=tr.priceHistory||[];
+  if(hist.length<2)return(<div style={{background:"#0a0e17",borderRadius:8,padding:10,marginTop:6,textAlign:"center",color:"#64748b",fontSize:10}}>Collecting data... ({hist.length} ticks)</div>);
+  var W=m?310:480,H=m?120:110,pL=28,pR=48,pT=8,pB=14;var cW=W-pL-pR,cH=H-pT-pB;
+  var ap=hist.map(function(h){return h.p;});ap.push(tr.targetPrice,tr.stopPrice,tr.entryPrice);if(cp)ap.push(cp);
+  var mx=Math.max.apply(null,ap),mn=Math.min.apply(null,ap),rg=mx-mn||1;mx+=rg*0.05;mn-=rg*0.05;rg=mx-mn;
+  function yP(p){return pT+cH*(1-(p-mn)/rg);}function xP(i){return pL+(i/Math.max(hist.length-1,1))*cW;}
+  var pts=hist.map(function(h,i){return xP(i)+","+yP(h.p);}).join(" ");
+  var eY=yP(tr.entryPrice),tY=yP(tr.targetPrice),sY=yP(tr.stopPrice),lX=xP(hist.length-1),lY=cp?yP(cp):yP(hist[hist.length-1].p);
+  var pnl=cp?cp-tr.entryPrice:0;var pc=(pnl/tr.entryPrice*100).toFixed(2);var col=pnl>=0?"#22c55e":"#ef4444";
+  var fp=pL+","+eY;hist.forEach(function(h,i){fp+=" "+xP(i)+","+yP(h.p);});fp+=" "+lX+","+eY;
+  var st2=new Date(hist[0].t),en=new Date(hist[hist.length-1].t);var el=Math.round((en-st2)/1000);var es=el<60?el+"s":Math.floor(el/60)+"m "+el%60+"s";
+  return(<div style={{background:"#0a0e17",borderRadius:8,padding:m?6:8,marginTop:6,maxWidth:m?"100%":500}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{fontSize:10,fontWeight:700,color:"#f8fafc"}}>📊 {tr.symbol}</span><span style={{fontSize:10,color:col,fontWeight:700}}>{pnl>=0?"+":""}{pc}%</span></div><span style={{fontSize:9,color:"#64748b"}}>⏱{es} · {hist.length}t</span></div><svg width={W} height={H} viewBox={"0 0 "+W+" "+H} style={{display:"block",width:"100%",height:"auto"}}><rect x={pL} y={tY} width={cW} height={Math.max(0,eY-tY)} fill="#22c55e06"/><rect x={pL} y={eY} width={cW} height={Math.max(0,sY-eY)} fill="#ef444406"/><line x1={pL} y1={tY} x2={pL+cW} y2={tY} stroke="#22c55e" strokeWidth="0.8" strokeDasharray="5,3"/><line x1={pL} y1={eY} x2={pL+cW} y2={eY} stroke="#8b5cf6" strokeWidth="0.8" strokeDasharray="5,3"/><line x1={pL} y1={sY} x2={pL+cW} y2={sY} stroke="#ef4444" strokeWidth="0.8" strokeDasharray="5,3"/><polygon points={fp} fill={col} fillOpacity="0.07"/><polyline points={pts} fill="none" stroke={col} strokeWidth="2" strokeLinejoin="round"/><circle cx={pL} cy={eY} r="4" fill="#8b5cf6" stroke="#0a0e17" strokeWidth="1.5"/><circle cx={lX} cy={lY} r="5" fill={col} stroke="#0a0e17" strokeWidth="1.5"/><text x={2} y={tY+3} fill="#22c55e" fontSize="7">TP</text><text x={2} y={eY+3} fill="#8b5cf6" fontSize="7">In</text><text x={2} y={sY+3} fill="#ef4444" fontSize="7">SL</text><text x={pL+cW+2} y={eY+3} fill="#8b5cf6" fontSize="7">{"$"+fmt(tr.entryPrice)}</text><text x={pL+cW+2} y={tY+3} fill="#22c55e" fontSize="7">{"$"+fmt(tr.targetPrice)}</text><text x={pL+cW+2} y={sY+3} fill="#ef4444" fontSize="7">{"$"+fmt(tr.stopPrice)}</text>{cp&&<text x={pL+cW+2} y={lY+3} fill={col} fontSize="8" fontWeight="700">{"$"+fmt(cp)}</text>}</svg></div>);
 }
 
-function genSparkline(base, change) {
-  var d = [];
-  var v = base * (1 - Math.abs(change) / 100);
-  for (var i = 0; i < 48; i++) {
-    v += v * ((change > 0 ? 0.3 : -0.3) + (Math.random() - 0.5) * 1.2) / 100;
-    d.push(v);
-  }
-  return d;
+function ClosedChart(props){
+  var tr=props.trade,m=props.mobile;var hist=tr.chartSnapshot||[];
+  if(hist.length<3)return(<div style={{fontSize:10,color:"#475569",padding:6}}>No chart data</div>);
+  var W=m?300:440,H=m?90:80,pL=24,pR=44,pT=6,pB=8;var cW=W-pL-pR,cH=H-pT-pB;
+  var ap2=hist.map(function(h){return h.p;});ap2.push(tr.targetPrice,tr.stopPrice,tr.entryPrice,tr.exitPrice);
+  var mx=Math.max.apply(null,ap2),mn=Math.min.apply(null,ap2),rg=mx-mn||1;mx+=rg*0.05;mn-=rg*0.05;rg=mx-mn;
+  function yP(p){return pT+cH*(1-(p-mn)/rg);}function xP(i){return pL+(i/Math.max(hist.length-1,1))*cW;}
+  var pts=hist.map(function(h,i){return xP(i)+","+yP(h.p);}).join(" ");
+  var eY=yP(tr.entryPrice),exY=yP(tr.exitPrice),tY=yP(tr.targetPrice),sY2=yP(tr.stopPrice);
+  var w2=tr.pnl>=0;var col=w2?"#22c55e":"#ef4444";
+  return(<div style={{background:"#0a0e17",borderRadius:8,padding:4,marginTop:4,maxWidth:m?"100%":460}}><svg width={W} height={H} viewBox={"0 0 "+W+" "+H} style={{display:"block",width:"100%",height:"auto"}}><line x1={pL} y1={tY} x2={pL+cW} y2={tY} stroke="#22c55e" strokeWidth="0.6" strokeDasharray="4,3"/><line x1={pL} y1={eY} x2={pL+cW} y2={eY} stroke="#8b5cf6" strokeWidth="0.6" strokeDasharray="4,3"/><line x1={pL} y1={sY2} x2={pL+cW} y2={sY2} stroke="#ef4444" strokeWidth="0.6" strokeDasharray="4,3"/><polyline points={pts} fill="none" stroke={col} strokeWidth="1.8" strokeLinejoin="round"/><circle cx={pL} cy={eY} r="3" fill="#8b5cf6"/><circle cx={xP(hist.length-1)} cy={exY} r="3.5" fill={col} stroke="#0a0e17" strokeWidth="1"/><text x={1} y={tY+3} fill="#22c55e" fontSize="6">TP</text><text x={1} y={eY+3} fill="#8b5cf6" fontSize="6">In</text><text x={1} y={sY2+3} fill="#ef4444" fontSize="6">SL</text><text x={pL+cW+2} y={exY+3} fill={col} fontSize="7" fontWeight="700">{"$"+fmt(tr.exitPrice)}</text></svg></div>);
 }
 
-async function safeFetch(url, timeout) {
-  var ms = timeout || 10000;
-  var ctrl = new AbortController();
-  var timer = setTimeout(function () { ctrl.abort(); }, ms);
-  var resp = await fetch(url, { signal: ctrl.signal, mode: "cors" });
-  clearTimeout(timer);
-  if (!resp.ok) throw new Error("HTTP " + resp.status);
-  return resp.json();
+function EqCurve(props){
+  var ctr=props.closedTrades,sb=5000,m=props.mobile;if(ctr.length<2)return null;
+  var W=m?310:480,H=m?90:100,pL=42,pR=8,pT=8,pB=14;var cW=W-pL-pR,cH=H-pT-pB;
+  var eq=[sb];ctr.forEach(function(t){eq.push(eq[eq.length-1]+t.pnl);});
+  var mx=Math.max.apply(null,eq),mn=Math.min.apply(null,eq),rg=mx-mn||1;mx+=rg*0.05;mn-=rg*0.05;rg=mx-mn;
+  function yE(v){return pT+cH*(1-(v-mn)/rg);}
+  var pts=eq.map(function(v,i){return(pL+(i/Math.max(eq.length-1,1))*cW)+","+yE(v);}).join(" ");
+  var fp=pL+","+yE(sb)+" "+pts+" "+(pL+cW)+","+yE(sb);
+  var fin=eq[eq.length-1],tp=fin-sb,col=tp>=0?"#22c55e":"#ef4444";
+  return(<div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:m?"8px":"12px",marginBottom:12}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{fontSize:11,fontWeight:700,color:"#f8fafc"}}>📈 Equity</span><span style={{fontSize:11,fontWeight:700,color:col}}>{tp>=0?"+":""}${fmt(tp)} ({((tp/sb)*100).toFixed(1)}%)</span></div><svg width={W} height={H} viewBox={"0 0 "+W+" "+H} style={{display:"block",width:"100%",height:"auto"}}><line x1={pL} y1={yE(sb)} x2={pL+cW} y2={yE(sb)} stroke="#64748b" strokeWidth="0.4" strokeDasharray="3,3"/><polygon points={fp} fill={col} fillOpacity="0.1"/><polyline points={pts} fill="none" stroke={col} strokeWidth="2.5" strokeLinejoin="round"/><circle cx={pL} cy={yE(sb)} r="3" fill="#64748b"/><circle cx={pL+cW} cy={yE(fin)} r="4" fill={col} stroke="#0a0e17" strokeWidth="1.5"/><text x={pL-2} y={yE(sb)+3} fill="#64748b" fontSize="7" textAnchor="end">{"$"+sb}</text><text x={pL+cW+2} y={yE(fin)+3} fill={col} fontSize="7">{"$"+fin.toFixed(0)}</text></svg></div>);
 }
 
-function MiniChartComponent(props) {
-  var data = props.data;
-  var color = props.color;
-  var mobile = props.mobile;
-  if (!data || data.length < 2) return null;
-  var h = mobile ? 30 : 36;
-  var w = mobile ? 90 : 110;
-  var min = Math.min.apply(null, data);
-  var max = Math.max.apply(null, data);
-  var range = max - min || 1;
-  var pts = data.map(function (v, i) {
-    return (i / (data.length - 1)) * w + "," + (h - ((v - min) / range) * h);
-  }).join(" ");
-  var gid = "gr" + Math.random().toString(36).slice(2, 8);
-  return (
-    <svg width={w} height={h} viewBox={"0 0 " + w + " " + h}>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={"0," + h + " " + pts + " " + w + "," + h} fill={"url(#" + gid + ")"} />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" />
-    </svg>
-  );
+function TExamples(props){
+  var tr=props.trade,amts=props.amounts,fe=props.fees,m=props.mobile;
+  var ep=(tr.entryLow+tr.entryHigh)/2,tp=(tr.targetLow+tr.targetHigh)/2,ef=fe.tk/100,xf=fe.mk/100;
+  if(m){return(<div style={{marginTop:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:4}}>EXAMPLES <span style={{color:"#f97316",fontWeight:700}}>• Fees</span></div>{amts.map(function(a,i){var co=a/ep,nt=co*tp*(1-xf)-a*(1+ef)+a,ns=co*tr.stop*(1-xf)-a*(1+ef)+a;return(<div key={i} style={{background:"#0a0e17",borderRadius:8,padding:8,marginBottom:4}}><div style={{fontSize:12,fontWeight:700,color:"#f8fafc",marginBottom:4}}>${a}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:11}}><div><span style={{color:"#64748b"}}>P: </span><span style={{color:"#22c55e",fontWeight:600}}>+${fmt(nt)}</span></div><div><span style={{color:"#64748b"}}>L: </span><span style={{color:"#ef4444",fontWeight:600}}>${fmt(ns)}</span></div></div></div>);})}</div>);}
+  return(<div style={{marginTop:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:4}}>EXAMPLES <span style={{color:"#f97316",fontWeight:700}}>• {fe.tk}%/{fe.mk}%</span></div><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e293b"}}>{["$","Coins","+Profit","P%","-Loss","L%"].map(function(h,i){return(<th key={i} style={{padding:"4px 6px",textAlign:"left",color:"#64748b",fontSize:9,fontWeight:600}}>{h}</th>);})}</tr></thead><tbody>{amts.map(function(a,i){var co=a/ep,nt=co*tp*(1-xf)-a*(1+ef)+a,ns=co*tr.stop*(1-xf)-a*(1+ef)+a;return(<tr key={i}><td style={{padding:"5px 6px",fontWeight:600,color:"#f8fafc"}}>${a}</td><td style={{padding:"5px 6px",color:"#94a3b8"}}>{fmt(co)}</td><td style={{padding:"5px 6px",color:"#22c55e",fontWeight:600}}>+${fmt(nt)}</td><td style={{padding:"5px 6px",color:"#22c55e"}}>{(nt/a*100).toFixed(1)}%</td><td style={{padding:"5px 6px",color:"#ef4444",fontWeight:600}}>${fmt(Math.abs(ns))}</td><td style={{padding:"5px 6px",color:"#ef4444"}}>{(ns/a*100).toFixed(1)}%</td></tr>);})}</tbody></table></div>);
 }
 
-function ConfidenceBarComponent(props) {
-  var value = props.value;
-  var bg = value >= 70 ? "#22c55e" : value >= 50 ? "#f59e0b" : "#ef4444";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#1e293b" }}>
-        <div style={{ width: value + "%", height: "100%", borderRadius: 3, background: bg }} />
-      </div>
-      <span style={{ fontSize: 12, color: "#94a3b8", minWidth: 28 }}>{value}%</span>
-    </div>
-  );
+function analyzeOhlc(candles){
+  if(!candles||candles.length<10)return null;
+  var r=candles.slice(-14),aS=0;for(var i=1;i<r.length;i++){var h=r[i][2],l=r[i][3],pc=r[i-1][4];aS+=Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc));}var atr=aS/(r.length-1);
+  var cl=candles.map(function(c){return parseFloat(c[4]);}),hi=candles.map(function(c){return parseFloat(c[2]);}),lo=candles.map(function(c){return parseFloat(c[3]);});
+  var al=hi.slice(-20).concat(lo.slice(-20)).sort(function(a,b){return a-b;}),pr=cl[cl.length-1],th=pr*0.003;
+  var clu=[],cu=[al[0]];for(var j=1;j<al.length;j++){if(al[j]-al[j-1]<th)cu.push(al[j]);else{if(cu.length>=2)clu.push(cu.reduce(function(a,b){return a+b;},0)/cu.length);cu=[al[j]];}}if(cu.length>=2)clu.push(cu.reduce(function(a,b){return a+b;},0)/cu.length);
+  var sup=clu.filter(function(c){return c<pr;}).sort(function(a,b){return b-a;})[0]||pr*0.985;
+  var res=clu.filter(function(c){return c>pr;}).sort(function(a,b){return a-b;})[0]||pr*1.015;
+  var vP=(atr/pr)*100,s10=cl.slice(-10).reduce(function(a,b){return a+b;},0)/10,mom=((pr-s10)/s10)*100;
+  var s20=cl.slice(-20).reduce(function(a,b){return a+b;},0)/Math.min(20,cl.length),trend=pr>s20?"up":"down";
+  var g=0,ls=0,rp=Math.min(14,cl.length-1);for(var k=cl.length-rp;k<cl.length;k++){var d=cl[k]-cl[k-1];if(d>0)g+=d;else ls+=Math.abs(d);}
+  var rsi=ls===0?100:100-(100/(1+(g/rp)/(ls/rp)));
+  return{atr:atr,sup:sup,res:res,vP:vP,mom:mom,rsi:rsi,pr:pr,trend:trend};
 }
 
-function SourceDotComponent(props) {
-  var status = props.status;
-  var label = props.label;
-  var c = status === "live" ? "#22c55e" : status === "error" ? "#ef4444" : "#f59e0b";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10 }}>
-      <div style={{ width: 6, height: 6, borderRadius: "50%", background: c, boxShadow: status === "live" ? "0 0 5px " + c : "none" }} />
-      <span style={{ color: status === "live" ? "#94a3b8" : "#64748b" }}>{label}</span>
-    </div>
-  );
+function mkT(coin,md,type,tc,desc,eL,eH,tL,tH,stop,conf,an,rk){
+  var tm=rk?rk.tm:1,sm=rk?rk.sm:1,ae=(eL+eH)/2;var rd=((tL+tH)/2)-ae,sd=ae-stop;
+  var aL=ae+rd*tm,aH=ae+(tH-ae+(tH-tL)/2)*tm,aS=ae-sd*sm;
+  conf=Math.max(10,Math.min(95,Math.round(conf)));var at=(aL+aH)/2,pp=((at-ae)/ae)*100,lp=Math.abs((aS-ae)/ae)*100,rr=lp>0?pp/lp:1;
+  var sc=(pp/6)*0.35+(conf/100)*0.35+Math.min(rr/3,1)*0.3;
+  return{symbol:coin.symbol,name:coin.name,type:type,typeColor:tc,desc:desc,entryLow:eL,entryHigh:eH,targetLow:aL,targetHigh:aH,stop:aS,rr:"1:"+rr.toFixed(1),confidence:conf,direction:"Long",profitPct:pp,score:sc,bid:md.bid,ask:md.ask,spread:md.spread,atrPct:an?an.vP:null,rsi:an?an.rsi:null,momentum:an?an.mom:null,supportLevel:an?an.sup:null,resistanceLevel:an?an.res:null,trend:an?an.trend:null,coinId:coin.id};
 }
 
-function TradeChartComponent(props) {
-  var trade = props.trade;
-  var currentPrice = props.currentPrice;
-  var mobile = props.mobile;
-  var hist = trade.priceHistory || [];
-  if (hist.length < 2) {
-    return (
-      <div style={{ background: "#0a0e17", borderRadius: 10, padding: 12, marginTop: 8, textAlign: "center", color: "#64748b", fontSize: 11 }}>
-        <div style={{ marginBottom: 4 }}>📊 Collecting price data... ({hist.length} ticks)</div>
-        <div style={{ fontSize: 10, color: "#475569" }}>Chart appears after 2+ price updates</div>
-      </div>
-    );
-  }
-  var W = mobile ? 320 : 480;
-  var H = mobile ? 130 : 120;
-  var padL = 30;
-  var padR = 50;
-  var padT = 10;
-  var padB = 18;
-  var chartW = W - padL - padR;
-  var chartH = H - padT - padB;
-
-  var allPrices = hist.map(function (h) { return h.p; });
-  allPrices.push(trade.targetPrice, trade.stopPrice, trade.entryPrice);
-  if (currentPrice) allPrices.push(currentPrice);
-  var maxP = Math.max.apply(null, allPrices);
-  var minP = Math.min.apply(null, allPrices);
-  var range = maxP - minP || 1;
-  maxP = maxP + range * 0.05;
-  minP = minP - range * 0.05;
-  range = maxP - minP;
-
-  function yP(p) { return padT + chartH * (1 - (p - minP) / range); }
-  function xP(i) { return padL + (i / Math.max(hist.length - 1, 1)) * chartW; }
-
-  var pts = hist.map(function (h, i) { return xP(i) + "," + yP(h.p); }).join(" ");
-
-  var entryY = yP(trade.entryPrice);
-  var targetY = yP(trade.targetPrice);
-  var stopY = yP(trade.stopPrice);
-  var lastX = xP(hist.length - 1);
-  var lastY = currentPrice ? yP(currentPrice) : yP(hist[hist.length - 1].p);
-  var pnl = currentPrice ? currentPrice - trade.entryPrice : hist[hist.length - 1].p - trade.entryPrice;
-  var pnlPct = (pnl / trade.entryPrice * 100).toFixed(2);
-  var pnlColor = pnl >= 0 ? "#22c55e" : "#ef4444";
-
-  var fillPts = padL + "," + entryY;
-  hist.forEach(function (h, i) { fillPts += " " + xP(i) + "," + yP(h.p); });
-  fillPts += " " + lastX + "," + entryY;
-
-  var startTime = new Date(hist[0].t);
-  var endTime = new Date(hist[hist.length - 1].t);
-  var elapsed = Math.round((endTime - startTime) / 1000);
-  var elapsedStr = elapsed < 60 ? elapsed + "s" : Math.floor(elapsed / 60) + "m " + (elapsed % 60) + "s";
-
-  return (
-    <div style={{ background: "#0a0e17", borderRadius: 10, padding: mobile ? 8 : 10, marginTop: 8, maxWidth: mobile ? "100%" : 520 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#f8fafc" }}>📊 {trade.symbol}</span>
-          <span style={{ fontSize: 10, color: pnlColor, fontWeight: 700 }}>{pnl >= 0 ? "+" : ""}{pnlPct}%</span>
-        </div>
-        <div style={{ display: "flex", gap: 6, fontSize: 9, color: "#64748b" }}>
-          <span>⏱ {elapsedStr}</span>
-          <span>{hist.length} ticks</span>
-        </div>
-      </div>
-      <svg width={W} height={H} viewBox={"0 0 " + W + " " + H} style={{ display: "block", width: "100%", height: "auto" }}>
-        <rect x={padL} y={targetY} width={chartW} height={Math.max(0, entryY - targetY)} fill="#22c55e06" />
-        <rect x={padL} y={entryY} width={chartW} height={Math.max(0, stopY - entryY)} fill="#ef444406" />
-        <line x1={padL} y1={targetY} x2={padL + chartW} y2={targetY} stroke="#22c55e" strokeWidth="1" strokeDasharray="6,4" />
-        <line x1={padL} y1={entryY} x2={padL + chartW} y2={entryY} stroke="#8b5cf6" strokeWidth="1" strokeDasharray="6,4" />
-        <line x1={padL} y1={stopY} x2={padL + chartW} y2={stopY} stroke="#ef4444" strokeWidth="1" strokeDasharray="6,4" />
-        <polygon points={fillPts} fill={pnlColor} fillOpacity="0.08" />
-        <polyline points={pts} fill="none" stroke={pnlColor} strokeWidth="2.5" strokeLinejoin="round" />
-        <circle cx={padL} cy={entryY} r="5" fill="#8b5cf6" stroke="#0a0e17" strokeWidth="2" />
-        <circle cx={lastX} cy={lastY} r="6" fill={pnlColor} stroke="#0a0e17" strokeWidth="2" />
-        <circle cx={lastX} cy={lastY} r="8" fill="none" stroke={pnlColor} strokeWidth="1" opacity="0.3" />
-        <text x={2} y={targetY + 3} fill="#22c55e" fontSize="8" fontWeight="600">TP</text>
-        <text x={2} y={entryY + 3} fill="#8b5cf6" fontSize="8" fontWeight="600">Entry</text>
-        <text x={2} y={stopY + 3} fill="#ef4444" fontSize="8" fontWeight="600">SL</text>
-        <text x={padL + chartW + 3} y={targetY + 3} fill="#22c55e" fontSize="8">{"$" + fmt(trade.targetPrice)}</text>
-        <text x={padL + chartW + 3} y={entryY + 3} fill="#8b5cf6" fontSize="8">{"$" + fmt(trade.entryPrice)}</text>
-        <text x={padL + chartW + 3} y={stopY + 3} fill="#ef4444" fontSize="8">{"$" + fmt(trade.stopPrice)}</text>
-        {currentPrice && <text x={padL + chartW + 3} y={lastY + 3} fill={pnlColor} fontSize="9" fontWeight="700">{"$" + fmt(currentPrice)}</text>}
-      </svg>
-    </div>
-  );
+function genTrades(coin,md,an,rk){
+  var ts=[],p=md.price,ch=md.change24h||0;
+  if(!an){var a=p*0.012;ts.push(mkT(coin,md,"Scalp","#06b6d4",coin.symbol+" scalp.",p-a*0.3,p,p+a*1.8,p+a*2.2,p-a*1.2,55,null,rk));return ts;}
+  var a2=an.atr,su=an.sup,re=an.res,vP=an.vP,mo=an.mom,rsi=an.rsi,tr=an.trend;
+  if(vP>0.3){var c=60;if(mo>0.5)c+=8;if(rsi<60)c+=5;if(md.spread!=null&&md.spread<0.05)c+=5;ts.push(mkT(coin,md,"Scalp","#06b6d4",coin.symbol+" scalp — vol "+vP.toFixed(1)+"%.",p-a2*0.4,p,p+a2*1.5,p+a2*2.0,p-a2*1.2,c,an,rk));}
+  if(tr==="up"||mo>0.3){var c2=55;if(tr==="up")c2+=10;if(rsi<65)c2+=5;if(ch>2)c2+=5;ts.push(mkT(coin,md,"Long","#22c55e",coin.symbol+" long — "+tr+" trend.",p-a2*0.5,p+a2*0.1,p+a2*3,p+a2*4,p-a2*1.8,c2,an,rk));}
+  if(((re-p)/p)*100<2&&mo>0){var c3=58;if(vP>0.5)c3+=6;ts.push(mkT(coin,md,"Breakout","#f59e0b",coin.symbol+" breakout near $"+fmt(re)+".",re*0.998,re*1.005,re+a2*2.5,re+a2*3.5,re-a2*1.2,c3,an,rk));}
+  if(rsi<40||ch<-2){var c4=52;if(rsi<30)c4+=10;if(((p-su)/p)*100<1.5)c4+=8;ts.push(mkT(coin,md,"Dip Buy","#8b5cf6",coin.symbol+" dip — RSI "+rsi.toFixed(0)+" near $"+fmt(su)+".",su*0.997,su*1.005,su+a2*2.5,su+a2*3.5,su-a2*1.5,c4,an,rk));}
+  if(mo>1&&vP>0.4){var c5=62;if(ch>3)c5+=8;if(tr==="up")c5+=6;ts.push(mkT(coin,md,"Momentum","#f97316",coin.symbol+" momentum +"+mo.toFixed(1)+"%.",p-a2*0.2,p+a2*0.1,p+a2*2,p+a2*3,p-a2*1.5,c5,an,rk));}
+  if(rsi<30&&tr==="down"&&ch<-3){var c6=45;if(rsi<25)c6+=8;ts.push(mkT(coin,md,"Reversal","#ec4899",coin.symbol+" reversal RSI "+rsi.toFixed(0)+".",p-a2*0.3,p+a2*0.1,p+a2*3,p+a2*4.5,p-a2*2,c6,an,rk));}
+  if(ts.length===0)ts.push(mkT(coin,md,"Scalp","#06b6d4",coin.symbol+" range scalp.",p-a2*0.5,p,p+a2*2,p+a2*2.8,p-a2*1.3,50,an,rk));
+  return ts;
 }
 
-function TradeExamplesComponent(props) {
-  var trade = props.trade;
-  var amounts = props.amounts;
-  var fees = props.fees;
-  var mobile = props.mobile;
-  var ep = (trade.entryLow + trade.entryHigh) / 2;
-  var tp = (trade.targetLow + trade.targetHigh) / 2;
-  var sp = trade.stop;
-  var ef = fees.taker / 100;
-  var xf = fees.maker / 100;
+function useW(){var s=useState(typeof window!=="undefined"?window.innerWidth:1200);useEffect(function(){function h(){s[1](window.innerWidth);}window.addEventListener("resize",h);return function(){window.removeEventListener("resize",h);};},[]);return s[0];}
 
-  if (mobile) {
-    return (
-      <div style={{ marginTop: 10 }}>
-        <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
-          Examples <span style={{ color: "#f97316", fontWeight: 700 }}>• Fees</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {amounts.map(function (amt, i) {
-            var coins = amt / ep;
-            var nt = coins * tp * (1 - xf) - amt * (1 + ef) + amt;
-            var ns = coins * sp * (1 - xf) - amt * (1 + ef) + amt;
-            return (
-              <div key={i} style={{ background: "#0a0e17", borderRadius: 8, padding: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#f8fafc", marginBottom: 6 }}>${amt.toLocaleString()}</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div><div style={{ fontSize: 9, color: "#64748b" }}>PROFIT</div><div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>+${fmt(nt)}</div></div>
-                  <div><div style={{ fontSize: 9, color: "#64748b" }}>LOSS</div><div style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>${fmt(ns)}</div></div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
+export default function CryptoDashboard(){
+  var w=useW(),mob=w<640,S=useState;
+  var _tab=S("all"),tab=_tab[0],sTab=_tab[1];var _t=S(new Date()),time=_t[0],sTime=_t[1];
+  var _am=S([100,500,1000]),am=_am[0],sAm=_am[1];var _ea=S(false),ea=_ea[0],sEa=_ea[1];var _ta=S("100, 500, 1000"),ta=_ta[0],sTa=_ta[1];
+  var _m=S({}),merged=_m[0],sM=_m[1];var _gd=S(null),gd=_gd[0],sGd=_gd[1];var _fg=S(null),fg=_fg[0],sFg=_fg[1];
+  var _src=S({ws:"loading",cg:"loading",bn:"loading",cc:"loading",fg:"loading",oh:"loading"}),src=_src[0],sSrc=_src[1];
+  var _oh=S({}),oh=_oh[0],sOh=_oh[1];var _uf=S(false),uf=_uf[0],sUf=_uf[1];var _ss=S(false),ss=_ss[0],sSs=_ss[1];
+  var _ft=S(0),ft=_ft[0],sFt=_ft[1];var _sf2=S(false),sf2=_sf2[0],sSf=_sf2[1];
+  var _wc=S(false),wc=_wc[0],sWc=_wc[1];var _wt=S(0),wt=_wt[0],sWt=_wt[1];var _kl=S({}),kl=_kl[0],sKl=_kl[1];
+  var _bal=S(5000),bal=_bal[0],sBal=_bal[1];var _ot=S([]),ot=_ot[0],sOt=_ot[1];var _ct=S([]),ct=_ct[0],sCt=_ct[1];
+  var _eb=S(false),eb=_eb[0],sEb=_eb[1];var _tb=S("5000"),tb=_tb[0],sTb=_tb[1];var _sp=S(true),sp=_sp[0],sSp=_sp[1];
+  var _nf=S(null),nf=_nf[0],sNf=_nf[1];var _et=S(null),et=_et[0],sEt=_et[1];var _rl=S(1),rl=_rl[0],sRl=_rl[1];
+  var _pg=S("dashboard"),pg=_pg[0],sPg=_pg[1];var _lf=S("all"),lf=_lf[0],sLf=_lf[1];
+  var _ec=S(null),ec=_ec[0],sEc=_ec[1];var _sl=S(false),sl=_sl[0],sSl=_sl[1];
+  var _eti=S(null),eti=_eti[0],sEti=_eti[1];var _etp=S(""),etp=_etp[0],sEtp=_etp[1];var _esl=S(""),esl=_esl[0],sEsl=_esl[1];
+  var wR=useRef(null),klR=useRef({}),rcT=useRef(null);var fees=FTIERS[ft];
 
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
-        Examples <span style={{ color: "#f97316", fontWeight: 700 }}>• Fees ({fees.taker}%/{fees.maker}%)</span>
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid #1e293b" }}>
-              {["Invest", "Coins", "Net Profit", "P%", "Net Loss", "L%"].map(function (h, idx) {
-                return (<th key={idx} style={{ padding: "5px 8px", textAlign: "left", color: "#64748b", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>);
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {amounts.map(function (amt, i) {
-              var coins = amt / ep;
-              var nt = coins * tp * (1 - xf) - amt * (1 + ef) + amt;
-              var ns = coins * sp * (1 - xf) - amt * (1 + ef) + amt;
-              var np = (nt / amt) * 100;
-              var nl = (ns / amt) * 100;
-              return (
-                <tr key={i} style={{ borderBottom: i < amounts.length - 1 ? "1px solid #1e293b20" : "none" }}>
-                  <td style={{ padding: "6px 8px", fontWeight: 600, color: "#f8fafc" }}>${amt.toLocaleString()}</td>
-                  <td style={{ padding: "6px 8px", color: "#94a3b8" }}>{fmt(coins)}</td>
-                  <td style={{ padding: "6px 8px", color: "#22c55e", fontWeight: 600 }}>+${fmt(nt)}</td>
-                  <td style={{ padding: "6px 8px", color: "#22c55e", fontWeight: 600 }}>{np.toFixed(1)}%</td>
-                  <td style={{ padding: "6px 8px", color: "#ef4444", fontWeight: 600 }}>${fmt(Math.abs(ns))}</td>
-                  <td style={{ padding: "6px 8px", color: "#ef4444", fontWeight: 600 }}>{nl.toFixed(1)}%</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+  useEffect(function(){async function ld(){try{var r=await sGet("pts");if(r){var s=JSON.parse(r);if(s.bal!=null)sBal(s.bal);if(s.ot)sOt(s.ot);if(s.ct)sCt(s.ct);if(s.ft!=null)sFt(s.ft);if(s.rl!=null)sRl(s.rl);if(s.am)sAm(s.am);}}catch(e){}sSl(true);}ld();},[]);
+  useEffect(function(){if(!sl)return;sSet("pts",JSON.stringify({bal:bal,ot:ot.map(function(t){return Object.assign({},t,{priceHistory:(t.priceHistory||[]).slice(-50)});}),ct:ct.slice(-100).map(function(t){return Object.assign({},t,{chartSnapshot:(t.chartSnapshot||[]).slice(-60)});}),ft:ft,rl:rl,am:am}));},[bal,ot,ct,ft,rl,am,sl]);
+  useEffect(function(){if(!ot.length)return;sOt(function(p){return p.map(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:null;if(!cp)return t;var h=t.priceHistory||[];if(!h.length||Date.now()-h[h.length-1].t>5000)return Object.assign({},t,{priceHistory:h.concat([{p:cp,t:Date.now()}]).slice(-200)});return t;});});},[wt,merged]);
+  useEffect(function(){if(!ot.length)return;ot.forEach(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:null;if(!cp)return;if(cp>=t.targetPrice)clT(t.id,"Target ✅");else if(cp<=t.stopPrice)clT(t.id,"Stop ❌");});},[merged,wt]);
 
-function analyzeOhlc(candles) {
-  if (!candles || candles.length < 10) return null;
-  var recent = candles.slice(-14);
-  var atrSum = 0;
-  for (var i = 1; i < recent.length; i++) {
-    var h = recent[i][2], l = recent[i][3], pc = recent[i - 1][4];
-    atrSum += Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
-  }
-  var atr = atrSum / (recent.length - 1);
-  var closes = candles.map(function (c) { return parseFloat(c[4]); });
-  var highs = candles.map(function (c) { return parseFloat(c[2]); });
-  var lows = candles.map(function (c) { return parseFloat(c[3]); });
-  var allLevels = highs.slice(-20).concat(lows.slice(-20)).sort(function (a, b) { return a - b; });
-  var price = closes[closes.length - 1];
-  var threshold = price * 0.003;
-  var clusters = [];
-  var cluster = [allLevels[0]];
-  for (var j = 1; j < allLevels.length; j++) {
-    if (allLevels[j] - allLevels[j - 1] < threshold) { cluster.push(allLevels[j]); }
-    else { if (cluster.length >= 2) clusters.push(cluster.reduce(function (a, b) { return a + b; }, 0) / cluster.length); cluster = [allLevels[j]]; }
-  }
-  if (cluster.length >= 2) clusters.push(cluster.reduce(function (a, b) { return a + b; }, 0) / cluster.length);
-  var sups = clusters.filter(function (c) { return c < price; }).sort(function (a, b) { return b - a; });
-  var ress = clusters.filter(function (c) { return c > price; }).sort(function (a, b) { return a - b; });
-  var sup = sups[0] || price * 0.985;
-  var res = ress[0] || price * 1.015;
-  var volPct = (atr / price) * 100;
-  var sma10 = closes.slice(-10).reduce(function (a, b) { return a + b; }, 0) / 10;
-  var sma20 = closes.slice(-20).reduce(function (a, b) { return a + b; }, 0) / Math.min(20, closes.length);
-  var mom = ((price - sma10) / sma10) * 100;
-  var trend = price > sma20 ? "up" : "down";
-  var gains = 0, losses = 0;
-  var rp = Math.min(14, closes.length - 1);
-  for (var k = closes.length - rp; k < closes.length; k++) {
-    var diff = closes[k] - closes[k - 1];
-    if (diff > 0) gains += diff; else losses += Math.abs(diff);
-  }
-  var rsi = losses === 0 ? 100 : 100 - (100 / (1 + (gains / rp) / (losses / rp)));
-  return { atr: atr, sup: sup, res: res, volPct: volPct, mom: mom, rsi: rsi, price: price, trend: trend };
-}
+  function enT(trade,a){var ep=(trade.entryLow+trade.entryHigh)/2,tp=(trade.targetLow+trade.targetHigh)/2;var fee=a*(fees.tk/100),cost=a+fee;if(cost>bal){sNf({m:"Not enough!",c:"#ef4444"});setTimeout(function(){sNf(null);},2500);return;}var id=Date.now(),now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();sBal(function(b){return b-cost;});sOt(function(p){return p.concat([{id:id,symbol:trade.symbol,coinId:trade.coinId,type:trade.type,entryPrice:ep,targetPrice:tp,stopPrice:trade.stop,coins:a/ep,investAmt:a,entryFee:fee,enteredAt:ts,enteredMs:now.getTime(),priceHistory:[{p:ep,t:Date.now()}],riskLabel:RISK[rl].label,rr:trade.rr}]);});sNf({m:"Opened "+trade.symbol+" $"+a,c:"#22c55e"});setTimeout(function(){sNf(null);},2500);sEt(id);sSp(true);}
+  function clT(id,reason){sOt(function(p){var t=p.find(function(x){return x.id===id;});if(!t)return p;var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice,gv=t.coins*cp,xf2=gv*(fees.mk/100),net=gv-xf2,pnl=net-t.investAmt-t.entryFee,pp=(pnl/t.investAmt)*100;var now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();var dMs=t.enteredMs?now.getTime()-t.enteredMs:0,ds=dMs<60000?Math.round(dMs/1000)+"s":dMs<3600000?Math.floor(dMs/60000)+"m":Math.floor(dMs/3600000)+"h "+Math.floor((dMs%3600000)/60000)+"m";sBal(function(b){return b+net;});sCt(function(c2){return c2.concat([Object.assign({},t,{exitPrice:cp,exitFee:xf2,pnl:pnl,pnlPct:pp,reason:reason||"Manual",closedAt:ts,duration:ds,chartSnapshot:(t.priceHistory||[]).slice(-100)})]);});sNf({m:t.symbol+" "+(reason||"Manual")+" "+(pnl>=0?"+":"")+"$"+fmt(pnl),c:pnl>=0?"#22c55e":"#ef4444"});setTimeout(function(){sNf(null);},2500);if(et===id)sEt(null);return p.filter(function(x){return x.id!==id;});});}
+  function modT(id){sOt(function(p){return p.map(function(t){if(t.id!==id)return t;var u=Object.assign({},t);var tp2=parseFloat(etp),sl2=parseFloat(esl);if(!isNaN(tp2)&&tp2>t.entryPrice)u.targetPrice=tp2;if(!isNaN(sl2)&&sl2<t.entryPrice)u.stopPrice=sl2;return u;});});sEti(null);sNf({m:"TP/SL updated",c:"#8b5cf6"});setTimeout(function(){sNf(null);},2000);}
 
-function makeTrade(coin, md, type, tc, desc, eL, eH, tL, tH, stop, conf, analysis, risk) {
-  var rm = risk || { targetMult: 1, stopMult: 1 };
-  var ae = (eL + eH) / 2;
-  var rawTargetDist = ((tL + tH) / 2) - ae;
-  var rawStopDist = ae - stop;
-  var adjTL = ae + rawTargetDist * rm.targetMult;
-  var adjTH = ae + (tH - ae + (tH - tL) / 2) * rm.targetMult;
-  var adjStop = ae - rawStopDist * rm.stopMult;
-  conf = Math.max(10, Math.min(95, Math.round(conf)));
-  var at = (adjTL + adjTH) / 2;
-  var ppct = ((at - ae) / ae) * 100;
-  var lpct = Math.abs((adjStop - ae) / ae) * 100;
-  var rr = lpct > 0 ? ppct / lpct : 1;
-  var score = (ppct / 6) * 0.35 + (conf / 100) * 0.35 + Math.min(rr / 3, 1) * 0.3;
-  return {
-    symbol: coin.symbol, name: coin.name, type: type, typeColor: tc, desc: desc,
-    entryLow: eL, entryHigh: eH, targetLow: adjTL, targetHigh: adjTH, stop: adjStop,
-    rr: "1:" + rr.toFixed(1), confidence: conf, direction: "Long", profitPct: ppct, score: score,
-    bid: md.bid, ask: md.ask, spread: md.spread,
-    atrPct: analysis ? analysis.volPct : null, rsi: analysis ? analysis.rsi : null,
-    momentum: analysis ? analysis.mom : null, supportLevel: analysis ? analysis.sup : null,
-    resistanceLevel: analysis ? analysis.res : null, trend: analysis ? analysis.trend : null,
-    coinId: coin.id,
-  };
-}
+  var oPnl=ot.reduce(function(s,t){var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice;return s+(t.coins*cp*(1-fees.mk/100)-t.investAmt-t.entryFee);},0);
+  var cPnl=ct.reduce(function(s,t){return s+t.pnl;},0);var wins=ct.filter(function(t){return t.pnl>0;}).length;
+  var tEq=bal+ot.reduce(function(s,t){return s+t.investAmt+t.entryFee;},0)+oPnl;
 
-function generateTrades(coin, md, analysis, risk) {
-  var trades = [];
-  var p = md.price;
-  var ch = md.change24h || 0;
-  if (!analysis) {
-    var atr = p * 0.012;
-    trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — scalp opportunity.", p - atr * 0.3, p, p + atr * 1.8, p + atr * 2.2, p - atr * 1.2, 55, null, risk));
-    return trades;
-  }
-  var atr2 = analysis.atr, sup = analysis.sup, res = analysis.res, volPct = analysis.volPct, mom = analysis.mom, rsi = analysis.rsi, trend = analysis.trend;
+  var cWs=useCallback(function(){try{if(wR.current&&wR.current.readyState<2)return;var ws=new WebSocket("wss://ws.kraken.com");wR.current=ws;ws.onopen=function(){sWc(true);sSrc(function(p){return Object.assign({},p,{ws:"live"});});ws.send(JSON.stringify({event:"subscribe",pair:COINS.map(function(c){return c.krakenWs;}),subscription:{name:"ticker"}}));};ws.onmessage=function(e){try{var d=JSON.parse(e.data);if(Array.isArray(d)&&d.length>=4){var tk=d[1],pn=d[3],co=COINS.find(function(c){return c.krakenWs===pn;});if(co&&tk&&tk.c){var l=parseFloat(tk.c[0]),o=parseFloat(tk.o[0]);klR.current=Object.assign({},klR.current);klR.current[co.id]={price:l,bid:parseFloat(tk.b[0]),ask:parseFloat(tk.a[0]),high:parseFloat(tk.h[1]),low:parseFloat(tk.l[1]),vol:parseFloat(tk.v[1])*l,change:((l-o)/o)*100,spread:((parseFloat(tk.a[0])-parseFloat(tk.b[0]))/l)*100,ts:Date.now()};sKl(Object.assign({},klR.current));sWt(function(p){return p+1;});}}}catch(er){}};ws.onclose=function(){sWc(false);sSrc(function(p){return Object.assign({},p,{ws:"error"});});rcT.current=setTimeout(cWs,5000);};ws.onerror=function(){sSrc(function(p){return Object.assign({},p,{ws:"error"});});};}catch(er){};},[]);
+  useEffect(function(){cWs();return function(){if(wR.current)wR.current.close();if(rcT.current)clearTimeout(rcT.current);};},[cWs]);
 
-  if (volPct > 0.3) { var c1 = 60; if (mom > 0.5) c1 += 8; if (rsi < 60) c1 += 5; if (md.spread != null && md.spread < 0.05) c1 += 5; trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " scalp — vol " + volPct.toFixed(1) + "%, " + (mom > 0 ? "bullish" : "bearish") + " momentum.", p - atr2 * 0.4, p, p + atr2 * 1.5, p + atr2 * 2.0, p - atr2 * 1.2, c1, analysis, risk)); }
-  if (trend === "up" || mom > 0.3) { var c2 = 55; if (trend === "up") c2 += 10; if (rsi < 65) c2 += 5; if (ch > 2) c2 += 5; trades.push(makeTrade(coin, md, "Long", "#22c55e", coin.symbol + " long — " + trend + " trend, wider stop for room.", p - atr2 * 0.5, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.0, p - atr2 * 1.8, c2, analysis, risk)); }
-  if (((res - p) / p) * 100 < 2 && mom > 0) { var c3 = 58; if (volPct > 0.5) c3 += 6; if (ch > 1) c3 += 5; trades.push(makeTrade(coin, md, "Breakout", "#f59e0b", coin.symbol + " breakout — pressing resistance $" + fmt(res) + ".", res * 0.998, res * 1.005, res + atr2 * 2.5, res + atr2 * 3.5, res - atr2 * 1.2, c3, analysis, risk)); }
-  if (rsi < 40 || ch < -2) { var c4 = 52; if (rsi < 30) c4 += 10; if (((p - sup) / p) * 100 < 1.5) c4 += 8; trades.push(makeTrade(coin, md, "Dip Buy", "#8b5cf6", coin.symbol + " dip buy — oversold RSI " + rsi.toFixed(0) + " near support $" + fmt(sup) + ".", sup * 0.997, sup * 1.005, sup + atr2 * 2.5, sup + atr2 * 3.5, sup - atr2 * 1.5, c4, analysis, risk)); }
-  if (mom > 1 && volPct > 0.4) { var c5 = 62; if (ch > 3) c5 += 8; if (trend === "up") c5 += 6; trades.push(makeTrade(coin, md, "Momentum", "#f97316", coin.symbol + " momentum — " + mom.toFixed(1) + "% above SMA. Riding the wave.", p - atr2 * 0.2, p + atr2 * 0.1, p + atr2 * 2.0, p + atr2 * 3.0, p - atr2 * 1.5, c5, analysis, risk)); }
-  if (rsi < 30 && trend === "down" && ch < -3) { var c6 = 45; if (rsi < 25) c6 += 8; trades.push(makeTrade(coin, md, "Reversal", "#ec4899", coin.symbol + " reversal — deeply oversold RSI " + rsi.toFixed(0) + ". Contrarian play.", p - atr2 * 0.3, p + atr2 * 0.1, p + atr2 * 3.0, p + atr2 * 4.5, p - atr2 * 2.0, c6, analysis, risk)); }
-  if (trades.length === 0) { trades.push(makeTrade(coin, md, "Scalp", "#06b6d4", coin.symbol + " — range scalp.", p - atr2 * 0.5, p, p + atr2 * 2.0, p + atr2 * 2.8, p - atr2 * 1.3, 50, analysis, risk)); }
-  return trades;
-}
+  var fOhlc=useCallback(function(){(async function(){var r={},ok=0;for(var i=0;i<COINS.length;i++){try{var d=await sf("https://api.kraken.com/0/public/OHLC?pair="+COINS[i].krakenOhlc+"&interval=15");if(d.result){var k=Object.keys(d.result).find(function(x){return x!=="last";});if(k){r[COINS[i].id]=d.result[k].slice(-100).map(function(c){return[c[0],parseFloat(c[1]),parseFloat(c[2]),parseFloat(c[3]),parseFloat(c[4]),parseFloat(c[5]),parseFloat(c[6])];});ok++;}}await new Promise(function(r2){setTimeout(r2,300);});}catch(e){}}sOh(r);sSrc(function(p){return Object.assign({},p,{oh:ok>0?"live":"error"});});})().catch(function(){sSrc(function(p){return Object.assign({},p,{oh:"error"});});});},[]);
 
-export default function CryptoDashboard() {
-  var width = useWidth();
-  var mob = width < 640;
-  var st = useState;
+  function applyFallback(){var m2={};COINS.forEach(function(c){var f=FB[c.id];if(f)m2[c.id]={price:f.p,change24h:f.c,sparkline:genSpark(f.p,f.c),sourceCount:0,sourceNames:["FB"],bid:null,ask:null,spread:null};});sM(m2);sUf(true);}
 
-  var _tab = st("all"), tab = _tab[0], setTab = _tab[1];
-  var _time = st(new Date()), time = _time[0], setTime = _time[1];
-  var _amounts = st([100, 500, 1000]), amounts = _amounts[0], setAmounts = _amounts[1];
-  var _editAmts = st(false), editAmts = _editAmts[0], setEditAmts = _editAmts[1];
-  var _tmpAmts = st("100, 500, 1000"), tmpAmts = _tmpAmts[0], setTmpAmts = _tmpAmts[1];
-  var _merged = st({}), merged = _merged[0], setMerged = _merged[1];
-  var _globalData = st(null), globalData = _globalData[0], setGlobalData = _globalData[1];
-  var _fearGreed = st(null), fearGreed = _fearGreed[0], setFearGreed = _fearGreed[1];
-  var _sources = st({ krakenWs: "loading", coingecko: "loading", binance: "loading", cryptocompare: "loading", feargreed: "loading", krakenOhlc: "loading" }), sources = _sources[0], setSources = _sources[1];
-  var _ohlcData = st({}), ohlcData = _ohlcData[0], setOhlcData = _ohlcData[1];
-  var _lastUp = st(null), setLastUp = _lastUp[1];
-  var _usingFb = st(false), usingFb = _usingFb[0], setUsingFb = _usingFb[1];
-  var _showSrc = st(false), showSrc = _showSrc[0], setShowSrc = _showSrc[1];
-  var _feeTier = st(0), feeTier = _feeTier[0], setFeeTier = _feeTier[1];
-  var _showFee = st(false), showFee = _showFee[0], setShowFee = _showFee[1];
-  var _wsConn = st(false), wsConn = _wsConn[0], setWsConn = _wsConn[1];
-  var _wsTick = st(0), wsTick = _wsTick[0], setWsTick = _wsTick[1];
-  var _krakenLive = st({}), krakenLive = _krakenLive[0], setKrakenLive = _krakenLive[1];
+  var fAll=useCallback(function(){(async function(){var pd={};COINS.forEach(function(c){pd[c.id]={prices:[],ch:[],vol:[],spark:null,sn:[]};});var any=false;
+  COINS.forEach(function(c){var k=klR.current[c.id];if(k&&Date.now()-k.ts<120000){pd[c.id].prices.push(k.price);pd[c.id].ch.push(k.change);pd[c.id].sn.push("WS");any=true;}});
+  try{var d=await sf("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids="+COINS.map(function(c){return c.id;}).join(",")+"&order=market_cap_desc&sparkline=true&price_change_percentage=24h");d.forEach(function(c){if(pd[c.id]){pd[c.id].prices.push(c.current_price);if(c.price_change_percentage_24h!=null)pd[c.id].ch.push(c.price_change_percentage_24h);if(c.total_volume)pd[c.id].vol.push(c.total_volume);if(c.sparkline_in_7d&&c.sparkline_in_7d.price)pd[c.id].spark=c.sparkline_in_7d.price.slice(-48);pd[c.id].sn.push("CG");}});sSrc(function(p){return Object.assign({},p,{cg:"live"});});any=true;}catch(e){sSrc(function(p){return Object.assign({},p,{cg:"error"});});}
+  try{var d2=await sf("https://api.binance.com/api/v3/ticker/24hr?symbols="+JSON.stringify(COINS.map(function(c){return c.binance;}).filter(Boolean)));d2.forEach(function(t){var co=COINS.find(function(c){return c.binance===t.symbol;});if(co&&pd[co.id]){pd[co.id].prices.push(parseFloat(t.lastPrice));pd[co.id].ch.push(parseFloat(t.priceChangePercent));pd[co.id].sn.push("BN");}});sSrc(function(p){return Object.assign({},p,{bn:"live"});});any=true;}catch(e){sSrc(function(p){return Object.assign({},p,{bn:"error"});});}
+  try{var d3=await sf("https://min-api.cryptocompare.com/data/pricemultifull?fsyms="+COINS.map(function(c){return c.cc;}).join(",")+"&tsyms=USD");if(d3.RAW)COINS.forEach(function(c){var r2=d3.RAW[c.cc]?d3.RAW[c.cc].USD:null;if(r2&&pd[c.id]){pd[c.id].prices.push(r2.PRICE);if(r2.CHANGEPCT24HOUR!=null)pd[c.id].ch.push(r2.CHANGEPCT24HOUR);pd[c.id].sn.push("CC");}});sSrc(function(p){return Object.assign({},p,{cc:"live"});});any=true;}catch(e){sSrc(function(p){return Object.assign({},p,{cc:"error"});});}
+  try{var d4=await sf("https://api.alternative.me/fng/?limit=1");if(d4.data&&d4.data[0])sFg({value:parseInt(d4.data[0].value),label:d4.data[0].value_classification});sSrc(function(p){return Object.assign({},p,{fg:"live"});});}catch(e){sSrc(function(p){return Object.assign({},p,{fg:"error"});});}
+  try{var d5=await sf("https://api.coingecko.com/api/v3/global");if(d5.data)sGd(d5.data);}catch(e){}
+  if(!any){applyFallback();return;}
+  sUf(false);function avg(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:null;}
+  var m3={};COINS.forEach(function(c){var p2=pd[c.id],ap=avg(p2.prices),k=klR.current[c.id];if(!ap)return;m3[c.id]={price:ap,change24h:avg(p2.ch),volume:avg(p2.vol),sparkline:p2.spark||genSpark(ap,avg(p2.ch)||0),sourceCount:p2.prices.length,sourceNames:Array.from(new Set(p2.sn)),bid:k?k.bid:null,ask:k?k.ask:null,spread:k?k.spread:null};});sM(m3);})().catch(function(){applyFallback();});},[]);
 
-  var _balance = st(5000), balance = _balance[0], setBalance = _balance[1];
-  var _openTrades = st([]), openTrades = _openTrades[0], setOpenTrades = _openTrades[1];
-  var _closedTrades = st([]), closedTrades = _closedTrades[0], setClosedTrades = _closedTrades[1];
-  var _editBal = st(false), editBal = _editBal[0], setEditBal = _editBal[1];
-  var _tmpBal = st("5000"), tmpBal = _tmpBal[0], setTmpBal = _tmpBal[1];
-  var _showPort = st(true), showPort = _showPort[0], setShowPort = _showPort[1];
-  var _notif = st(null), notif = _notif[0], setNotif = _notif[1];
-  var _expTrade = st(null), expTrade = _expTrade[0], setExpTrade = _expTrade[1];
-  var _riskLevel = st(1), riskLevel = _riskLevel[0], setRiskLevel = _riskLevel[1];
-  var _page = st("dashboard"), page = _page[0], setPage = _page[1];
-  var _logFilter = st("all"), logFilter = _logFilter[0], setLogFilter = _logFilter[1];
-  var _storageLoaded = st(false), storageLoaded = _storageLoaded[0], setStorageLoaded = _storageLoaded[1];
+  useEffect(function(){fAll();fOhlc();var i1=setInterval(fAll,60000),i2=setInterval(fOhlc,300000);return function(){clearInterval(i1);clearInterval(i2);};},[]);
+  useEffect(function(){var t=setInterval(function(){sTime(new Date());},1000);return function(){clearInterval(t);};},[]);
+  useEffect(function(){if(!Object.keys(kl).length)return;sM(function(p){var n=Object.assign({},p);COINS.forEach(function(c){var k=kl[c.id];if(k&&n[c.id]){n[c.id]=Object.assign({},n[c.id],{bid:k.bid,ask:k.ask,spread:k.spread});if(k.ts>(n[c.id]._t||0)){n[c.id].price=n[c.id].price?(n[c.id].price*0.4+k.price*0.6):k.price;n[c.id].change24h=k.change;n[c.id]._t=k.ts;}}});return n;});},[wt]);
 
-  var wsRef = useRef(null);
-  var klRef = useRef({});
-  var rcTimer = useRef(null);
-  var fees = FEE_TIERS[feeTier];
+  var lc=Object.values(src).filter(function(s){return s==="live";}).length;
+  var hp=Object.values(merged).some(function(mm){return mm.price!=null;});
+  var allT=COINS.flatMap(function(c){var d=merged[c.id];if(!d||!d.price)return[];return genTrades(c,d,analyzeOhlc(oh[c.id]||null),RISK[rl]);}).sort(function(a,b){return b.score-a.score;});
+  var tTypes=["all"].concat(Array.from(new Set(allT.map(function(t){return t.type.toLowerCase();}))));
+  var fT=tab==="all"?allT:allT.filter(function(t){return t.type.toLowerCase()===tab;});
+  function svAm(){var p=ta.split(",").map(function(s){return parseFloat(s.trim());}).filter(function(n){return!isNaN(n)&&n>0;});if(p.length>0){sAm(p);sEa(false);}}
+  var fgD=fg||{value:62,label:"Greed"};var fgC=fgD.value>55?"#22c55e":fgD.value>45?"#f59e0b":"#ef4444";
 
-  function useWidth() {
-    var _w = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
-    useEffect(function () {
-      function h() { _w[1](window.innerWidth); }
-      window.addEventListener("resize", h);
-      return function () { window.removeEventListener("resize", h); };
-    }, []);
-    return _w[0];
-  }
-
-  // ===== PERSISTENT STORAGE =====
-  function storageGet(key) {
-    return new Promise(function (resolve) {
-      if (typeof window !== "undefined" && window.storage && window.storage.get) {
-        window.storage.get(key).then(function (result) {
-          resolve(result && result.value ? result.value : null);
-        }).catch(function () {
-          try { resolve(localStorage.getItem(key)); } catch (e) { resolve(null); }
-        });
-      } else {
-        try { resolve(localStorage.getItem(key)); } catch (e) { resolve(null); }
-      }
-    });
-  }
-
-  function storageSet(key, value) {
-    if (typeof window !== "undefined" && window.storage && window.storage.set) {
-      try { window.storage.set(key, value); } catch (e) {}
-    }
-    try { localStorage.setItem(key, value); } catch (e) {}
-  }
-
-  function storageDel(key) {
-    if (typeof window !== "undefined" && window.storage && window.storage.delete) {
-      try { window.storage.delete(key); } catch (e) {}
-    }
-    try { localStorage.removeItem(key); } catch (e) {}
-  }
-
-  useEffect(function () {
-    async function loadData() {
-      try {
-        var raw = await storageGet("paper-trading-state");
-        if (raw) {
-          var saved = JSON.parse(raw);
-          if (saved.balance != null) setBalance(saved.balance);
-          if (saved.openTrades) setOpenTrades(saved.openTrades);
-          if (saved.closedTrades) setClosedTrades(saved.closedTrades);
-          if (saved.feeTier != null) setFeeTier(saved.feeTier);
-          if (saved.riskLevel != null) setRiskLevel(saved.riskLevel);
-          if (saved.amounts) setAmounts(saved.amounts);
-        }
-      } catch (e) {}
-      setStorageLoaded(true);
-    }
-    loadData();
-  }, []);
-
-  useEffect(function () {
-    if (!storageLoaded) return;
-    var state = {
-      balance: balance,
-      openTrades: openTrades.map(function (t) {
-        return Object.assign({}, t, { priceHistory: (t.priceHistory || []).slice(-50) });
-      }),
-      closedTrades: closedTrades.slice(-100),
-      feeTier: feeTier,
-      riskLevel: riskLevel,
-      amounts: amounts,
-    };
-    storageSet("paper-trading-state", JSON.stringify(state));
-  }, [balance, openTrades, closedTrades, feeTier, riskLevel, amounts, storageLoaded]);
-
-  // Price history recording
-  useEffect(function () {
-    if (openTrades.length === 0) return;
-    setOpenTrades(function (prev) {
-      return prev.map(function (t) {
-        var cp = merged[t.coinId] ? merged[t.coinId].price : null;
-        if (!cp) return t;
-        var hist = t.priceHistory || [];
-        if (hist.length === 0 || Date.now() - hist[hist.length - 1].t > 5000) {
-          return Object.assign({}, t, { priceHistory: hist.concat([{ p: cp, t: Date.now() }]).slice(-200) });
-        }
-        return t;
-      });
-    });
-  }, [wsTick, merged]);
-
-  // Auto close
-  useEffect(function () {
-    if (openTrades.length === 0) return;
-    openTrades.forEach(function (t) {
-      var cp = merged[t.coinId] ? merged[t.coinId].price : null;
-      if (!cp) return;
-      if (cp >= t.targetPrice) closeTrade(t.id, "Target ✅");
-      else if (cp <= t.stopPrice) closeTrade(t.id, "Stop ❌");
-    });
-  }, [merged, wsTick]);
-
-  function enterTrade(trade, amt) {
-    var ep = (trade.entryLow + trade.entryHigh) / 2;
-    var tp = (trade.targetLow + trade.targetHigh) / 2;
-    var fee = amt * (fees.taker / 100);
-    var cost = amt + fee;
-    if (cost > balance) { setNotif({ m: "Not enough balance!", c: "#ef4444" }); setTimeout(function () { setNotif(null); }, 3000); return; }
-    var coins = amt / ep;
-    var tradeId = Date.now();
-    var now = new Date();
-    var timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
-    setBalance(function (b) { return b - cost; });
-    setOpenTrades(function (prev) {
-      return prev.concat([{
-        id: tradeId, symbol: trade.symbol, coinId: trade.coinId || COINS.find(function (c) { return c.symbol === trade.symbol; }).id,
-        type: trade.type, entryPrice: ep, targetPrice: tp, stopPrice: trade.stop, coins: coins, investAmt: amt, entryFee: fee,
-        enteredAt: timestamp, enteredMs: now.getTime(), status: "open", priceHistory: [{ p: ep, t: Date.now() }],
-        riskLabel: RISK_PROFILES[riskLevel].label, rr: trade.rr,
-      }]);
-    });
-    setNotif({ m: "Opened " + trade.symbol + " " + trade.type + " — $" + amt, c: "#22c55e" });
-    setTimeout(function () { setNotif(null); }, 3000);
-    setExpTrade(tradeId);
-    setShowPort(true);
-  }
-
-  function closeTrade(id, reason) {
-    setOpenTrades(function (prev) {
-      var t = prev.find(function (x) { return x.id === id; });
-      if (!t) return prev;
-      var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice;
-      var gv = t.coins * cp;
-      var xf = gv * (fees.maker / 100);
-      var net = gv - xf;
-      var pnl = net - t.investAmt - t.entryFee;
-      var pnlPct = (pnl / t.investAmt) * 100;
-      var closeNow = new Date();
-      var closeTimestamp = closeNow.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + closeNow.toLocaleTimeString();
-      var durationMs = t.enteredMs ? closeNow.getTime() - t.enteredMs : 0;
-      var durationStr = "";
-      if (durationMs < 60000) durationStr = Math.round(durationMs / 1000) + "s";
-      else if (durationMs < 3600000) durationStr = Math.floor(durationMs / 60000) + "m " + Math.round((durationMs % 60000) / 1000) + "s";
-      else durationStr = Math.floor(durationMs / 3600000) + "h " + Math.floor((durationMs % 3600000) / 60000) + "m";
-      setBalance(function (b) { return b + net; });
-      setClosedTrades(function (ct) { return ct.concat([Object.assign({}, t, { exitPrice: cp, exitFee: xf, pnl: pnl, pnlPct: pnlPct, reason: reason || "Manual", closedAt: closeTimestamp, closedMs: closeNow.getTime(), duration: durationStr })]); });
-      setNotif({ m: t.symbol + " " + reason + " " + (pnl >= 0 ? "+" : "") + "$" + fmt(pnl), c: pnl >= 0 ? "#22c55e" : "#ef4444" });
-      setTimeout(function () { setNotif(null); }, 3000);
-      if (expTrade === id) setExpTrade(null);
-      return prev.filter(function (x) { return x.id !== id; });
-    });
-  }
-
-  var openPnl = openTrades.reduce(function (s, t) { var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice; return s + (t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee); }, 0);
-  var closedPnl = closedTrades.reduce(function (s, t) { return s + t.pnl; }, 0);
-  var wins = closedTrades.filter(function (t) { return t.pnl > 0; }).length;
-  var invested = openTrades.reduce(function (s, t) { return s + t.investAmt + t.entryFee; }, 0);
-  var totalEq = balance + invested + openPnl;
-
-  var connectWs = useCallback(function () {
-    try {
-      if (wsRef.current && wsRef.current.readyState < 2) return;
-      var ws = new WebSocket("wss://ws.kraken.com");
-      wsRef.current = ws;
-      ws.onopen = function () { setWsConn(true); setSources(function (p) { return Object.assign({}, p, { krakenWs: "live" }); }); ws.send(JSON.stringify({ event: "subscribe", pair: COINS.map(function (c) { return c.krakenWs; }), subscription: { name: "ticker" } })); };
-      ws.onmessage = function (e) { try { var d = JSON.parse(e.data); if (Array.isArray(d) && d.length >= 4) { var tk = d[1], pn = d[3]; var coin = COINS.find(function (c) { return c.krakenWs === pn; }); if (coin && tk && tk.c) { var last = parseFloat(tk.c[0]), open = parseFloat(tk.o[0]); klRef.current = Object.assign({}, klRef.current); klRef.current[coin.id] = { price: last, bid: parseFloat(tk.b[0]), ask: parseFloat(tk.a[0]), high: parseFloat(tk.h[1]), low: parseFloat(tk.l[1]), vol: parseFloat(tk.v[1]) * last, change: ((last - open) / open) * 100, spread: ((parseFloat(tk.a[0]) - parseFloat(tk.b[0])) / last) * 100, ts: Date.now() }; setKrakenLive(Object.assign({}, klRef.current)); setWsTick(function (p) { return p + 1; }); } } } catch (err) {} };
-      ws.onclose = function () { setWsConn(false); setSources(function (p) { return Object.assign({}, p, { krakenWs: "error" }); }); rcTimer.current = setTimeout(connectWs, 5000); };
-      ws.onerror = function () { setSources(function (p) { return Object.assign({}, p, { krakenWs: "error" }); }); };
-    } catch (err) {}
-  }, []);
-
-  useEffect(function () { connectWs(); return function () { if (wsRef.current) wsRef.current.close(); if (rcTimer.current) clearTimeout(rcTimer.current); }; }, [connectWs]);
-
-  var fetchOhlc = useCallback(function () {
-    var doFetch = async function () {
-      var res = {}; var ok = 0;
-      for (var i = 0; i < COINS.length; i++) {
-        try { var d = await safeFetch("https://api.kraken.com/0/public/OHLC?pair=" + COINS[i].krakenOhlc + "&interval=15"); if (d.result) { var k = Object.keys(d.result).find(function (x) { return x !== "last"; }); if (k) { res[COINS[i].id] = d.result[k].slice(-100).map(function (c) { return [c[0], parseFloat(c[1]), parseFloat(c[2]), parseFloat(c[3]), parseFloat(c[4]), parseFloat(c[5]), parseFloat(c[6])]; }); ok++; } } await new Promise(function (r) { setTimeout(r, 300); }); } catch (e) {}
-      }
-      setOhlcData(res); setSources(function (p) { return Object.assign({}, p, { krakenOhlc: ok > 0 ? "live" : "error" }); });
-    };
-    doFetch();
-  }, []);
-
-  var fetchAll = useCallback(function () {
-    var doFetch = async function () {
-      var pd = {}; COINS.forEach(function (c) { pd[c.id] = { prices: [], change24h: [], high24h: [], low24h: [], volume: [], sparkline: null, sourceNames: [] }; }); var any = false;
-      COINS.forEach(function (c) { var kl = klRef.current[c.id]; if (kl && Date.now() - kl.ts < 120000) { pd[c.id].prices.push(kl.price); pd[c.id].change24h.push(kl.change); pd[c.id].high24h.push(kl.high); pd[c.id].low24h.push(kl.low); pd[c.id].volume.push(kl.vol); pd[c.id].sourceNames.push("WS"); any = true; } });
-      try { var d = await safeFetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + COINS.map(function (c) { return c.id; }).join(",") + "&order=market_cap_desc&sparkline=true&price_change_percentage=24h"); d.forEach(function (c) { if (pd[c.id]) { pd[c.id].prices.push(c.current_price); if (c.price_change_percentage_24h != null) pd[c.id].change24h.push(c.price_change_percentage_24h); if (c.high_24h) pd[c.id].high24h.push(c.high_24h); if (c.total_volume) pd[c.id].volume.push(c.total_volume); if (c.sparkline_in_7d && c.sparkline_in_7d.price) pd[c.id].sparkline = c.sparkline_in_7d.price.slice(-48); pd[c.id].sourceNames.push("CG"); } }); setSources(function (p) { return Object.assign({}, p, { coingecko: "live" }); }); any = true; } catch (e) { setSources(function (p) { return Object.assign({}, p, { coingecko: "error" }); }); }
-      try { var syms = COINS.map(function (c) { return c.binance; }).filter(Boolean); var d2 = await safeFetch("https://api.binance.com/api/v3/ticker/24hr?symbols=" + JSON.stringify(syms)); d2.forEach(function (t) { var coin = COINS.find(function (c) { return c.binance === t.symbol; }); if (coin && pd[coin.id]) { pd[coin.id].prices.push(parseFloat(t.lastPrice)); pd[coin.id].change24h.push(parseFloat(t.priceChangePercent)); pd[coin.id].sourceNames.push("BN"); } }); setSources(function (p) { return Object.assign({}, p, { binance: "live" }); }); any = true; } catch (e) { setSources(function (p) { return Object.assign({}, p, { binance: "error" }); }); }
-      try { var d3 = await safeFetch("https://min-api.cryptocompare.com/data/pricemultifull?fsyms=" + COINS.map(function (c) { return c.cc; }).join(",") + "&tsyms=USD"); if (d3.RAW) COINS.forEach(function (c) { var r = d3.RAW[c.cc] ? d3.RAW[c.cc].USD : null; if (r && pd[c.id]) { pd[c.id].prices.push(r.PRICE); if (r.CHANGEPCT24HOUR != null) pd[c.id].change24h.push(r.CHANGEPCT24HOUR); pd[c.id].sourceNames.push("CC"); } }); setSources(function (p) { return Object.assign({}, p, { cryptocompare: "live" }); }); any = true; } catch (e) { setSources(function (p) { return Object.assign({}, p, { cryptocompare: "error" }); }); }
-      try { var d4 = await safeFetch("https://api.alternative.me/fng/?limit=1"); if (d4.data && d4.data[0]) setFearGreed({ value: parseInt(d4.data[0].value), label: d4.data[0].value_classification }); setSources(function (p) { return Object.assign({}, p, { feargreed: "live" }); }); } catch (e) { setSources(function (p) { return Object.assign({}, p, { feargreed: "error" }); }); }
-      try { var d5 = await safeFetch("https://api.coingecko.com/api/v3/global"); if (d5.data) setGlobalData(d5.data); } catch (e) {}
-      if (!any) { var m = {}; COINS.forEach(function (c) { var fb = FALLBACK_DATA[c.id]; if (fb) m[c.id] = { price: fb.price, change24h: fb.change, high24h: fb.high, low24h: fb.low, volume: fb.vol * 1e9, sparkline: genSparkline(fb.price, fb.change), sourceCount: 0, sourceNames: ["FB"], bid: null, ask: null, spread: null }; }); setMerged(m); setUsingFb(true); setLastUp(new Date()); return; }
-      setUsingFb(false);
-      function avg(arr) { return arr.length ? arr.reduce(function (a, b) { return a + b; }, 0) / arr.length : null; }
-      var m2 = {}; COINS.forEach(function (c) { var p2 = pd[c.id]; var ap = avg(p2.prices); var kl = klRef.current[c.id]; if (!ap) return; m2[c.id] = { price: ap, change24h: avg(p2.change24h), high24h: p2.high24h.length ? Math.max.apply(null, p2.high24h) : null, low24h: p2.low24h.length ? Math.min.apply(null, p2.low24h) : null, volume: avg(p2.volume), sparkline: p2.sparkline || genSparkline(ap, avg(p2.change24h) || 0), sourceCount: p2.prices.length, sourceNames: Array.from(new Set(p2.sourceNames)), bid: kl ? kl.bid : null, ask: kl ? kl.ask : null, spread: kl ? kl.spread : null }; });
-      setMerged(m2); setLastUp(new Date());
-    };
-    doFetch();
-  }, []);
-
-  useEffect(function () { fetchAll(); fetchOhlc(); var i1 = setInterval(fetchAll, 60000); var i2 = setInterval(fetchOhlc, 300000); return function () { clearInterval(i1); clearInterval(i2); }; }, []);
-  useEffect(function () { var t = setInterval(function () { setTime(new Date()); }, 1000); return function () { clearInterval(t); }; }, []);
-  useEffect(function () { if (!Object.keys(krakenLive).length) return; setMerged(function (prev) { var n = Object.assign({}, prev); COINS.forEach(function (c) { var kl = krakenLive[c.id]; if (kl && n[c.id]) { n[c.id] = Object.assign({}, n[c.id], { bid: kl.bid, ask: kl.ask, spread: kl.spread }); if (kl.ts > (n[c.id]._t || 0)) { n[c.id].price = n[c.id].price ? (n[c.id].price * 0.4 + kl.price * 0.6) : kl.price; n[c.id].change24h = kl.change; n[c.id]._t = kl.ts; } } }); return n; }); }, [wsTick]);
-
-  var liveCount = Object.values(sources).filter(function (s) { return s === "live"; }).length;
-  var hasPrices = Object.values(merged).some(function (m) { return m.price != null; });
-  var allTrades = COINS.flatMap(function (c) { var d = merged[c.id]; if (!d || !d.price) return []; return generateTrades(c, d, analyzeOhlc(ohlcData[c.id] || null), RISK_PROFILES[riskLevel]); }).sort(function (a, b) { return b.score - a.score; });
-  var tradeTypes = ["all"].concat(Array.from(new Set(allTrades.map(function (t) { return t.type.toLowerCase(); }))));
-  var filteredTrades = tab === "all" ? allTrades : allTrades.filter(function (t) { return t.type.toLowerCase() === tab; });
-  function saveAmts() { var p = tmpAmts.split(",").map(function (s) { return parseFloat(s.trim()); }).filter(function (n) { return !isNaN(n) && n > 0; }); if (p.length > 0) { setAmounts(p); setEditAmts(false); } }
-  var fg = fearGreed || { value: 62, label: "Greed" };
-  var fgColor = fg.value > 55 ? "#22c55e" : fg.value > 45 ? "#f59e0b" : "#ef4444";
-
-  return (
-    <div style={{ background: "#0a0e17", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'Inter',-apple-system,sans-serif", padding: mob ? "12px" : "20px 24px", WebkitTextSizeAdjust: "100%" }}>
-      {notif && <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: notif.c, color: "#fff", padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.5)", maxWidth: "90vw", textAlign: "center" }}>{notif.m}</div>}
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: mob ? "flex-start" : "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <h1 style={{ fontSize: mob ? 20 : 24, fontWeight: 700, margin: 0, color: "#f8fafc" }}><span style={{ color: "#8b5cf6" }}>Crypto</span> Day Trader</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>{time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {time.toLocaleTimeString()}</p>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {wsConn && <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#22c55e15", border: "1px solid #22c55e30", borderRadius: 8, padding: "4px 8px" }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s infinite" }} /><span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600 }}>LIVE</span></div>}
-          <button onClick={function () { fetchAll(); fetchOhlc(); }} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "6px 10px", fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>🔄</button>
-        </div>
+  /* ========== RENDER ========== */
+  return(
+    <div style={{background:"#0a0e17",minHeight:"100vh",color:"#e2e8f0",fontFamily:"'Inter',-apple-system,sans-serif",padding:mob?"12px":"20px 24px",WebkitTextSizeAdjust:"100%"}}>
+      {nf&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:999,background:nf.c,color:"#fff",padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.5)",maxWidth:"90vw",textAlign:"center"}}>{nf.m}</div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:mob?"flex-start":"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
+        <div><h1 style={{fontSize:mob?20:24,fontWeight:700,margin:0,color:"#f8fafc"}}><span style={{color:"#8b5cf6"}}>Crypto</span> Day Trader</h1><p style={{margin:"4px 0 0",fontSize:11,color:"#64748b"}}>{time.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})} · {time.toLocaleTimeString()}</p></div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>{wc&&<div style={{display:"flex",alignItems:"center",gap:4,background:"#22c55e15",border:"1px solid #22c55e30",borderRadius:8,padding:"4px 8px"}}><div style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse 2s infinite"}}/><span style={{fontSize:10,color:"#22c55e",fontWeight:600}}>LIVE</span></div>}<button onClick={function(){fAll();fOhlc();}} style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#94a3b8",cursor:"pointer"}}>🔄</button></div>
       </div>
 
-      {/* Page Navigation */}
-      {storageLoaded ? (
-      <div style={{ display: "flex", gap: 0, marginBottom: 10, background: "#111827", borderRadius: 10, overflow: "hidden", border: "1px solid #1e293b" }}>
-        <button onClick={function () { setPage("dashboard"); }} style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", background: page === "dashboard" ? "#8b5cf6" : "transparent", color: page === "dashboard" ? "#fff" : "#64748b", transition: "all 0.2s" }}>
-          📊 Dashboard
-        </button>
-        <button onClick={function () { setPage("log"); }} style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", background: page === "log" ? "#8b5cf6" : "transparent", color: page === "log" ? "#fff" : "#64748b", transition: "all 0.2s", position: "relative" }}>
-          📋 Trade Log {closedTrades.length > 0 && <span style={{ background: "#f59e0b", color: "#000", fontSize: 9, fontWeight: 700, borderRadius: 10, padding: "1px 6px", marginLeft: 4 }}>{closedTrades.length}</span>}
-        </button>
-      </div>
-      ) : (
-      <div style={{ textAlign: "center", padding: "40px 20px" }}>
-        <div style={{ fontSize: 14, color: "#64748b" }}>Loading saved data...</div>
-      </div>
-      )}
+      {sl?(<div style={{display:"flex",gap:0,marginBottom:10,background:"#111827",borderRadius:10,overflow:"hidden",border:"1px solid #1e293b"}}><button onClick={function(){sPg("dashboard");}} style={{flex:1,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",border:"none",background:pg==="dashboard"?"#8b5cf6":"transparent",color:pg==="dashboard"?"#fff":"#64748b"}}>📊 Dashboard</button><button onClick={function(){sPg("log");}} style={{flex:1,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",border:"none",background:pg==="log"?"#8b5cf6":"transparent",color:pg==="log"?"#fff":"#64748b"}}>📋 Log {ct.length>0&&<span style={{background:"#f59e0b",color:"#000",fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 6px",marginLeft:4}}>{ct.length}</span>}</button></div>):(<div style={{textAlign:"center",padding:"30px"}}><span style={{color:"#64748b"}}>Loading...</span></div>)}
 
-      {storageLoaded && page === "dashboard" && (<>
-      {/* Paper Portfolio */}
-      <div style={{ background: "linear-gradient(135deg,#111827,#0f172a)", border: "1px solid #8b5cf640", borderRadius: 14, padding: mob ? "12px" : "16px 20px", marginBottom: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#8b5cf6" }}>📋 Paper Trading</span>
-          <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "#22c55e15", color: "#22c55e" }}>💾 Auto-saved</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={function () { setShowPort(!showPort); }} style={{ background: "none", border: "1px solid #334155", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#64748b", cursor: "pointer" }}>{showPort ? "−" : "+"}</button>
-            <button onClick={function () { setBalance(5000); setOpenTrades([]); setClosedTrades([]); storageDel("paper-trading-state"); }} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "2px 8px", fontSize: 10, color: "#ef4444", cursor: "pointer" }}>Reset</button>
+      {sl&&pg==="dashboard"&&(<>
+        <div style={{background:"linear-gradient(135deg,#111827,#0f172a)",border:"1px solid #8b5cf640",borderRadius:14,padding:mob?"12px":"16px 20px",marginBottom:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:13,fontWeight:700,color:"#8b5cf6"}}>📋 Paper Trading</span><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:"#22c55e15",color:"#22c55e"}}>💾 Saved</span></div><div style={{display:"flex",gap:6}}><button onClick={function(){sSp(!sp);}} style={{background:"none",border:"1px solid #334155",borderRadius:6,padding:"2px 8px",fontSize:10,color:"#64748b",cursor:"pointer"}}>{sp?"−":"+"}</button><button onClick={function(){sBal(5000);sOt([]);sCt([]);sDel("pts");}} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:6,padding:"2px 8px",fontSize:10,color:"#ef4444",cursor:"pointer"}}>Reset</button></div></div>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(5,1fr)",gap:8}}>
+            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>CASH</div>{eb?(<div style={{display:"flex",gap:4}}><input value={tb} onChange={function(e){sTb(e.target.value);}} style={{background:"#111827",border:"1px solid #8b5cf6",borderRadius:6,padding:"2px 6px",fontSize:14,color:"#f8fafc",width:80,outline:"none"}}/><button onClick={function(){var v=parseFloat(tb);if(!isNaN(v)&&v>=0){sBal(v);sEb(false);}}} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:4,padding:"2px 6px",fontSize:10,cursor:"pointer"}}>✓</button></div>):(<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${bal.toFixed(2)}</span><button onClick={function(){sTb(bal.toFixed(0));sEb(true);}} style={{background:"none",border:"none",fontSize:11,cursor:"pointer",color:"#64748b"}}>✏️</button></div>)}</div>
+            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>EQUITY</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${tEq.toFixed(2)}</div></div>
+            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>OPEN P&L</div><div style={{fontSize:16,fontWeight:700,color:oPnl>=0?"#22c55e":"#ef4444"}}>{oPnl>=0?"+":""}${fmt(oPnl)}</div></div>
+            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>REALIZED</div><div style={{fontSize:16,fontWeight:700,color:cPnl>=0?"#22c55e":"#ef4444"}}>{cPnl>=0?"+":""}${fmt(cPnl)}</div></div>
+            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>WIN RATE</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>{ct.length>0?((wins/ct.length)*100).toFixed(0)+"%":"—"} <span style={{fontSize:10,color:"#64748b"}}>({wins}/{ct.length})</span></div></div>
           </div>
+          {sp&&ot.length>0&&(<div style={{marginTop:10}}><div style={{fontSize:10,color:"#64748b",marginBottom:6}}>OPEN ({ot.length})</div>{ot.map(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice;var pnl=t.coins*cp*(1-fees.mk/100)-t.investAmt-t.entryFee;var isE=et===t.id;return(<div key={t.id} style={{background:"#0a0e17",borderRadius:10,padding:"10px",marginBottom:6,border:"1px solid "+(pnl>=0?"#22c55e20":"#ef444420")}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4,cursor:"pointer"}} onClick={function(){sEt(isE?null:t.id);}}><div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontWeight:700,fontSize:13,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,color:"#64748b"}}>{t.type}·${t.investAmt}·{t.enteredAt}</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:12,fontWeight:700,color:pnl>=0?"#22c55e":"#ef4444"}}>{pnl>=0?"+":""}${fmt(pnl)}</span><button onClick={function(e){e.stopPropagation();clT(t.id,"Manual");}} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:6,padding:"3px 8px",fontSize:10,color:"#ef4444",cursor:"pointer"}}>Close</button><span style={{fontSize:9,color:"#64748b"}}>{isE?"▲":"▼"}</span></div></div>{isE&&<TChart trade={t} cp={cp} mobile={mob}/>}</div>);})}</div>)}
+          {sp&&ct.length>0&&(<div style={{marginTop:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:3}}>HISTORY ({ct.length})</div><div style={{maxHeight:80,overflowY:"auto"}}>{ct.slice().reverse().slice(0,8).map(function(t,i){return(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 6px",background:"#111827",borderRadius:4,marginBottom:2}}><span style={{color:"#94a3b8"}}>{t.symbol} {t.type}·${t.investAmt}·{t.reason}·{t.duration||""}</span><span style={{fontWeight:600,color:t.pnl>=0?"#22c55e":"#ef4444"}}>{t.pnl>=0?"+":""}${fmt(t.pnl)}</span></div>);})}</div></div>)}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(5,1fr)", gap: 8 }}>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}>
-            <div style={{ fontSize: 9, color: "#64748b" }}>CASH</div>
-            {editBal ? (
-              <div style={{ display: "flex", gap: 4 }}>
-                <input value={tmpBal} onChange={function (e) { setTmpBal(e.target.value); }} style={{ background: "#111827", border: "1px solid #8b5cf6", borderRadius: 6, padding: "2px 6px", fontSize: 14, color: "#f8fafc", width: 80, outline: "none" }} />
-                <button onClick={function () { var v = parseFloat(tmpBal); if (!isNaN(v) && v >= 0) { setBalance(v); setEditBal(false); } }} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}>✓</button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${balance.toFixed(2)}</span>
-                <button onClick={function () { setTmpBal(balance.toFixed(0)); setEditBal(true); }} style={{ background: "none", border: "none", fontSize: 11, cursor: "pointer", color: "#64748b" }}>✏️</button>
-              </div>
-            )}
-          </div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>EQUITY</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${totalEq.toFixed(2)}</div></div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>OPEN P&L</div><div style={{ fontSize: 16, fontWeight: 700, color: openPnl >= 0 ? "#22c55e" : "#ef4444" }}>{openPnl >= 0 ? "+" : ""}${fmt(openPnl)}</div></div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>REALIZED</div><div style={{ fontSize: 16, fontWeight: 700, color: closedPnl >= 0 ? "#22c55e" : "#ef4444" }}>{closedPnl >= 0 ? "+" : ""}${fmt(closedPnl)}</div></div>
-          <div style={{ background: "#0a0e17", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>WIN RATE</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>{closedTrades.length > 0 ? ((wins / closedTrades.length) * 100).toFixed(0) + "%" : "—"} <span style={{ fontSize: 10, color: "#64748b" }}>({wins}/{closedTrades.length})</span></div></div>
-        </div>
-
-        {showPort && openTrades.length > 0 && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>Open ({openTrades.length})</div>
-            {openTrades.map(function (t) {
-              var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice;
-              var pnl = t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee;
-              var pnlPct = (pnl / t.investAmt) * 100;
-              var isExp = expTrade === t.id;
-              return (
-                <div key={t.id} style={{ background: "#0a0e17", borderRadius: 10, padding: "10px 12px", marginBottom: 6, border: "1px solid " + (pnl >= 0 ? "#22c55e20" : "#ef444420") }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6, cursor: "pointer" }} onClick={function () { setExpTrade(isExp ? null : t.id); }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: "#f8fafc" }}>{t.symbol}</span>
-                      <span style={{ fontSize: 10, color: "#64748b" }}>{t.type} · ${t.investAmt} · {t.enteredAt}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>{pnl >= 0 ? "+" : ""}${fmt(pnl)}</span>
-                      <button onClick={function (e) { e.stopPropagation(); closeTrade(t.id, "Manual"); }} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "3px 8px", fontSize: 10, color: "#ef4444", cursor: "pointer" }}>Close</button>
-                      <span style={{ fontSize: 10, color: "#64748b" }}>{isExp ? "▲" : "▼"}</span>
-                    </div>
-                  </div>
-                  {isExp && <TradeChartComponent trade={t} currentPrice={cp} mobile={mob} />}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {showPort && closedTrades.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>History ({closedTrades.length})</div>
-            <div style={{ maxHeight: 100, overflowY: "auto" }}>
-              {closedTrades.slice().reverse().slice(0, 10).map(function (t, i) {
-                return (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, padding: "3px 6px", background: "#111827", borderRadius: 4, marginBottom: 2 }}>
-                    <span style={{ color: "#94a3b8" }}>{t.symbol} {t.type} · ${t.investAmt} · {t.reason} · {t.duration || ""}</span>
-                    <span style={{ fontWeight: 600, color: t.pnl >= 0 ? "#22c55e" : "#ef4444" }}>{t.pnl >= 0 ? "+" : ""}${fmt(t.pnl)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Risk Profile Selector */}
-      <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: mob ? "8px 10px" : "10px 16px", marginBottom: 8 }}>
-        <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>Risk Level</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-          {RISK_PROFILES.map(function (rp, i) {
-            var active = riskLevel === i;
-            return (
-              <button key={i} onClick={function () { setRiskLevel(i); }} style={{
-                background: active ? rp.color + "20" : "#0a0e17",
-                border: "2px solid " + (active ? rp.color : "#1e293b"),
-                borderRadius: 10, padding: mob ? "8px 6px" : "10px 12px", cursor: "pointer", textAlign: "center",
-                transition: "all 0.2s",
-              }}>
-                <div style={{ fontSize: 18, marginBottom: 2 }}>{rp.emoji}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: active ? rp.color : "#94a3b8" }}>{rp.label}</div>
-                <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{rp.desc}</div>
-                <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>Target: {rp.targetMult}x · Stop: {rp.stopMult}x</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Fees + Sources */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
-        <div style={{ background: "#111827", border: "1px solid #f9731630", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-          <span style={{ fontSize: 10, color: "#f97316", fontWeight: 700 }}>🐙</span>
-          <span style={{ fontSize: 10, color: "#94a3b8" }}>{fees.maker}%/{fees.taker}%</span>
-          <button onClick={function () { setShowFee(!showFee); }} style={{ background: "#f9731620", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 9, color: "#f97316", cursor: "pointer", marginLeft: "auto" }}>{showFee ? "Close" : "Change"}</button>
-        </div>
-        <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 10, color: "#64748b" }}>SRC</span>
-          <span style={{ fontSize: 10, color: liveCount >= 4 ? "#22c55e" : "#f59e0b", fontWeight: 600 }}>{liveCount}/7</span>
-          <button onClick={function () { setShowSrc(!showSrc); }} style={{ background: "none", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 9, color: "#64748b", cursor: "pointer" }}>{showSrc ? "−" : "+"}</button>
-        </div>
-      </div>
-      {showFee && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 6 }}>
-          {FEE_TIERS.map(function (t, i) {
-            return (
-              <button key={i} onClick={function () { setFeeTier(i); setShowFee(false); }} style={{ background: feeTier === i ? "#f9731625" : "#0a0e17", border: "1px solid " + (feeTier === i ? "#f97316" : "#1e293b"), borderRadius: 6, padding: "6px 8px", cursor: "pointer", textAlign: "left" }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: feeTier === i ? "#f97316" : "#94a3b8" }}>{t.label}</div>
-                <div style={{ fontSize: 9, color: "#64748b" }}>{t.maker}%/{t.taker}%</div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {showSrc && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", background: "#111827", borderRadius: 8, padding: "8px 12px", marginBottom: 6 }}>
-          <SourceDotComponent status={sources.krakenWs} label="Kraken WS" />
-          <SourceDotComponent status={sources.krakenOhlc} label="OHLC" />
-          <SourceDotComponent status={sources.binance} label="Binance" />
-          <SourceDotComponent status={sources.coingecko} label="CoinGecko" />
-          <SourceDotComponent status={sources.cryptocompare} label="CC" />
-          <SourceDotComponent status={sources.feargreed} label="F&G" />
-        </div>
-      )}
-
-      {usingFb && (
-        <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 10, padding: "8px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, color: "#f59e0b", flex: 1 }}>⚠️ Sample data — host for live</span>
-          <button onClick={fetchAll} style={{ background: "#f59e0b", color: "#000", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Retry</button>
-        </div>
-      )}
-
-      {hasPrices && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12, marginTop: 8 }}>
-            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>MARKET CAP</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${globalData ? (globalData.total_market_cap.usd / 1e12).toFixed(2) : "2.84"}T</div></div>
-            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>24H VOL</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>${globalData ? (globalData.total_volume.usd / 1e9).toFixed(1) : "98.2"}B</div></div>
-            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>FEAR & GREED</div><div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>{fg.value || "—"}</div>{fg.label && <div style={{ fontSize: 10, color: fgColor }}>{fg.label}</div>}</div>
-          </div>
-
-          <div style={{ overflowX: "auto", marginBottom: 14, WebkitOverflowScrolling: "touch" }}>
-            <div style={{ display: "flex", gap: 8, paddingBottom: 4 }}>
-              {COINS.map(function (c) { var d = merged[c.id]; if (!d || !d.price) return null; var ch = d.change24h || 0; var col = ch >= 0 ? "#22c55e" : "#ef4444"; return (
-                <div key={c.id} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "10px", minWidth: mob ? 130 : 170, flex: "0 0 auto" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: "#f8fafc" }}>{c.symbol}</span><span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 5, background: col + "18", color: col, fontWeight: 600 }}>{ch >= 0 ? "+" : ""}{ch.toFixed(1)}%</span></div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc", marginBottom: 3 }}>${d.price.toLocaleString(undefined, { minimumFractionDigits: d.price < 1 ? 4 : d.price < 100 ? 2 : 0 })}</div>
-                  <MiniChartComponent data={d.sparkline} color={col} mobile={mob} />
-                </div>); })}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <h2 style={{ fontSize: mob ? 14 : 16, fontWeight: 600, color: "#f8fafc", margin: 0 }}>Trade Ideas <span style={{ fontSize: 11, color: "#64748b", fontWeight: 400 }}>({filteredTrades.length})</span></h2>
-              {editAmts ? (
-                <div style={{ display: "flex", gap: 4 }}>
-                  <input value={tmpAmts} onChange={function (e) { setTmpAmts(e.target.value); }} style={{ background: "#0a0e17", border: "1px solid #8b5cf6", borderRadius: 8, padding: "5px 8px", fontSize: 11, color: "#f8fafc", width: 110, outline: "none" }} />
-                  <button onClick={saveAmts} style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "5px 7px", fontSize: 11, cursor: "pointer" }}>✓</button>
-                  <button onClick={function () { setEditAmts(false); }} style={{ background: "#1e293b", color: "#94a3b8", border: "none", borderRadius: 6, padding: "5px 7px", fontSize: 11, cursor: "pointer" }}>✕</button>
-                </div>
-              ) : (
-                <button onClick={function () { setTmpAmts(amounts.join(", ")); setEditAmts(true); }} style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "4px 10px", fontSize: 10, cursor: "pointer" }}>✏️ {amounts.map(function (a) { return "$" + a; }).join(", ")}</button>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              {tradeTypes.map(function (tp) { return (
-                <button key={tp} onClick={function () { setTab(tp); }} style={{ background: tab === tp ? "#8b5cf6" : "#1e293b", color: tab === tp ? "#fff" : "#94a3b8", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", whiteSpace: "nowrap" }}>{tp}</button>
-              ); })}
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gap: mob ? 10 : 12 }}>
-            {filteredTrades.map(function (t, i) { return (
-              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: mob ? "12px" : "16px 18px", position: "relative" }}>
-                {i === 0 && <div style={{ position: "absolute", top: -1, right: 14, background: "linear-gradient(135deg,#f59e0b,#f97316)", color: "#000", fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 6px 6px" }}>TOP</div>}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: 700, fontSize: mob ? 15 : 17, color: "#f8fafc" }}>{t.symbol}</span>
-                    <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: t.typeColor + "20", color: t.typeColor, fontWeight: 600 }}>{t.type}</span>
-                    <span style={{ fontSize: 10, padding: "2px 5px", borderRadius: 6, background: "#22c55e15", color: "#22c55e", fontWeight: 600 }}>+{t.profitPct.toFixed(1)}%</span>
-                    {t.trend && <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 5, background: t.trend === "up" ? "#22c55e15" : "#ef444415", color: t.trend === "up" ? "#22c55e" : "#ef4444" }}>{t.trend === "up" ? "↑ Up" : "↓ Down"}</span>}
-                  </div>
-                </div>
-                <p style={{ fontSize: mob ? 11 : 12, color: "#94a3b8", lineHeight: 1.5, margin: "0 0 8px" }}>{t.desc}</p>
-                <div style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" }}>
-                  {t.rsi != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>RSI </span><span style={{ color: t.rsi > 70 ? "#ef4444" : t.rsi < 30 ? "#22c55e" : "#f59e0b", fontWeight: 600 }}>{t.rsi.toFixed(0)}</span></span>}
-                  {t.atrPct != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>Vol </span><span style={{ color: "#8b5cf6", fontWeight: 600 }}>{t.atrPct.toFixed(1)}%</span></span>}
-                  {t.supportLevel != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>S:</span><span style={{ color: "#06b6d4", fontWeight: 600 }}>${fmt(t.supportLevel)}</span></span>}
-                  {t.resistanceLevel != null && <span style={{ background: "#0a0e17", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}><span style={{ color: "#64748b" }}>R:</span><span style={{ color: "#f59e0b", fontWeight: 600 }}>${fmt(t.resistanceLevel)}</span></span>}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 6, marginBottom: 8 }}>
-                  {[{ l: "Entry", v: "$" + fmt(t.entryLow) + "–" + fmt(t.entryHigh), c: "#8b5cf6" }, { l: "Target", v: "$" + fmt(t.targetLow) + "–" + fmt(t.targetHigh), c: "#22c55e" }, { l: "Stop", v: "$" + fmt(t.stop), c: "#ef4444" }, { l: "R/R", v: t.rr, c: "#f59e0b" }].map(function (x, j) { return (
-                    <div key={j} style={{ background: "#0a0e17", borderRadius: 8, padding: "7px 9px" }}><div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", marginBottom: 2 }}>{x.l}</div><div style={{ fontSize: mob ? 11 : 13, fontWeight: 600, color: x.c, wordBreak: "break-all" }}>{x.v}</div></div>
-                  ); })}
-                </div>
-                <div style={{ marginBottom: 8 }}><div style={{ fontSize: 10, color: "#64748b", marginBottom: 3 }}>Confidence</div><ConfidenceBarComponent value={t.confidence} /></div>
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid #1e293b" }}>
-                  <span style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 600, display: "flex", alignItems: "center" }}>📋 Paper:</span>
-                  {amounts.map(function (amt) { var ok = amt + amt * (fees.taker / 100) <= balance; return (
-                    <button key={amt} onClick={function () { enterTrade(t, amt); }} disabled={!ok} style={{ background: ok ? "#8b5cf620" : "#1e293b", border: "1px solid " + (ok ? "#8b5cf6" : "#334155"), borderRadius: 8, padding: mob ? "7px 12px" : "7px 16px", fontSize: 12, fontWeight: 700, cursor: ok ? "pointer" : "not-allowed", color: ok ? "#f8fafc" : "#475569" }}>${amt}</button>
-                  ); })}
-                </div>
-                {!mob && <TradeExamplesComponent trade={t} amounts={amounts} fees={fees} mobile={false} />}
-              </div>
-            ); })}
-          </div>
-        </>
-      )}
-
-      {!hasPrices && (
-        <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>📡</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc" }}>Connecting...</div>
-        </div>
-      )}
+        <div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:mob?"8px":"10px 14px",marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:6}}>RISK</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>{RISK.map(function(rp,i){var ac=rl===i;return(<button key={i} onClick={function(){sRl(i);}} style={{background:ac?rp.color+"20":"#0a0e17",border:"2px solid "+(ac?rp.color:"#1e293b"),borderRadius:10,padding:"8px 6px",cursor:"pointer",textAlign:"center"}}><div style={{fontSize:16}}>{rp.emoji}</div><div style={{fontSize:10,fontWeight:700,color:ac?rp.color:"#94a3b8"}}>{rp.label}</div><div style={{fontSize:8,color:"#64748b"}}>{rp.tm}x/{rp.sm}x</div></button>);})}</div></div>
+        <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}><div style={{background:"#111827",border:"1px solid #f9731630",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8,flex:1}}><span style={{fontSize:10,color:"#f97316",fontWeight:700}}>🐙</span><span style={{fontSize:10,color:"#94a3b8"}}>{fees.mk}%/{fees.tk}%</span><button onClick={function(){sSf(!sf2);}} style={{background:"#f9731620",border:"none",borderRadius:4,padding:"2px 8px",fontSize:9,color:"#f97316",cursor:"pointer",marginLeft:"auto"}}>{sf2?"Close":"Change"}</button></div><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:10,color:lc>=4?"#22c55e":"#f59e0b",fontWeight:600}}>{lc}/7 src</span><button onClick={function(){sSs(!ss);}} style={{background:"none",border:"1px solid #334155",borderRadius:4,padding:"2px 6px",fontSize:9,color:"#64748b",cursor:"pointer"}}>{ss?"−":"+"}</button></div></div>
+        {sf2&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,marginBottom:6}}>{FTIERS.map(function(t,i){return(<button key={i} onClick={function(){sFt(i);sSf(false);}} style={{background:ft===i?"#f9731625":"#0a0e17",border:"1px solid "+(ft===i?"#f97316":"#1e293b"),borderRadius:6,padding:"6px 8px",cursor:"pointer",textAlign:"left"}}><div style={{fontSize:10,fontWeight:600,color:ft===i?"#f97316":"#94a3b8"}}>{t.label}</div><div style={{fontSize:9,color:"#64748b"}}>{t.mk}%/{t.tk}%</div></button>);})}</div>}
+        {ss&&<div style={{display:"flex",gap:8,flexWrap:"wrap",background:"#111827",borderRadius:8,padding:"8px",marginBottom:6}}><SDot status={src.ws} label="WS"/><SDot status={src.oh} label="OHLC"/><SDot status={src.bn} label="Binance"/><SDot status={src.cg} label="CoinGecko"/><SDot status={src.cc} label="CC"/><SDot status={src.fg} label="F&G"/></div>}
+        {uf&&<div style={{background:"#f59e0b15",border:"1px solid #f59e0b40",borderRadius:10,padding:"8px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:"#f59e0b",flex:1}}>⚠️ Sample data — deploy for live</span><button onClick={fAll} style={{background:"#f59e0b",color:"#000",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Retry</button></div>}
+        {hp&&(<>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12,marginTop:8}}><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>MKT CAP</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${gd?(gd.total_market_cap.usd/1e12).toFixed(2):"2.84"}T</div></div><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>24H VOL</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${gd?(gd.total_volume.usd/1e9).toFixed(1):"98.2"}B</div></div><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>F&G</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>{fgD.value||"—"}</div>{fgD.label&&<div style={{fontSize:10,color:fgC}}>{fgD.label}</div>}</div></div>
+          <div style={{overflowX:"auto",marginBottom:14,WebkitOverflowScrolling:"touch"}}><div style={{display:"flex",gap:8,paddingBottom:4}}>{COINS.map(function(c){var d=merged[c.id];if(!d||!d.price)return null;var ch=d.change24h||0,col=ch>=0?"#22c55e":"#ef4444";return(<div key={c.id} style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"10px",minWidth:mob?125:160,flex:"0 0 auto"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontWeight:700,fontSize:12,color:"#f8fafc"}}>{c.symbol}</span><span style={{fontSize:10,padding:"1px 5px",borderRadius:5,background:col+"18",color:col,fontWeight:600}}>{ch>=0?"+":""}{ch.toFixed(1)}%</span></div><div style={{fontSize:15,fontWeight:700,color:"#f8fafc",marginBottom:3}}>${d.price.toLocaleString(undefined,{minimumFractionDigits:d.price<1?4:d.price<100?2:0})}</div><MiniC data={d.sparkline} color={col} mobile={mob}/></div>);})}</div></div>
+          <div style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><h2 style={{fontSize:mob?14:16,fontWeight:600,color:"#f8fafc",margin:0}}>Trade Ideas ({fT.length})</h2>{ea?(<div style={{display:"flex",gap:4}}><input value={ta} onChange={function(e){sTa(e.target.value);}} style={{background:"#0a0e17",border:"1px solid #8b5cf6",borderRadius:8,padding:"5px 8px",fontSize:11,color:"#f8fafc",width:100,outline:"none"}}/><button onClick={svAm} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"5px 7px",fontSize:11,cursor:"pointer"}}>✓</button><button onClick={function(){sEa(false);}} style={{background:"#1e293b",color:"#94a3b8",border:"none",borderRadius:6,padding:"5px 7px",fontSize:11,cursor:"pointer"}}>✕</button></div>):(<button onClick={function(){sTa(am.join(", "));sEa(true);}} style={{background:"#1e293b",color:"#94a3b8",border:"1px solid #334155",borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>✏️ {am.map(function(a){return"$"+a;}).join(", ")}</button>)}</div><div style={{display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>{tTypes.map(function(tp){return(<button key={tp} onClick={function(){sTab(tp);}} style={{background:tab===tp?"#8b5cf6":"#1e293b",color:tab===tp?"#fff":"#94a3b8",border:"none",borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize",whiteSpace:"nowrap"}}>{tp}</button>);})}</div></div>
+          <div style={{display:"grid",gap:mob?10:12}}>{fT.map(function(t,i){return(<div key={i} style={{background:"#111827",border:"1px solid #1e293b",borderRadius:12,padding:mob?"12px":"16px 18px",position:"relative"}}>{i===0&&<div style={{position:"absolute",top:-1,right:14,background:"linear-gradient(135deg,#f59e0b,#f97316)",color:"#000",fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:"0 0 6px 6px"}}>TOP</div>}<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:6}}><span style={{fontWeight:700,fontSize:mob?15:17,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,padding:"2px 7px",borderRadius:6,background:t.typeColor+"20",color:t.typeColor,fontWeight:600}}>{t.type}</span><span style={{fontSize:10,padding:"2px 5px",borderRadius:6,background:"#22c55e15",color:"#22c55e",fontWeight:600}}>+{t.profitPct.toFixed(1)}%</span>{t.trend&&<span style={{fontSize:9,padding:"2px 5px",borderRadius:5,background:t.trend==="up"?"#22c55e15":"#ef444415",color:t.trend==="up"?"#22c55e":"#ef4444"}}>{t.trend==="up"?"↑":"↓"}</span>}</div><p style={{fontSize:mob?11:12,color:"#94a3b8",lineHeight:1.5,margin:"0 0 8px"}}>{t.desc}</p><div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>{t.rsi!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>RSI </span><span style={{color:t.rsi>70?"#ef4444":t.rsi<30?"#22c55e":"#f59e0b",fontWeight:600}}>{t.rsi.toFixed(0)}</span></span>}{t.atrPct!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>Vol </span><span style={{color:"#8b5cf6",fontWeight:600}}>{t.atrPct.toFixed(1)}%</span></span>}{t.supportLevel!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>S:</span><span style={{color:"#06b6d4",fontWeight:600}}>${fmt(t.supportLevel)}</span></span>}{t.resistanceLevel!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>R:</span><span style={{color:"#f59e0b",fontWeight:600}}>${fmt(t.resistanceLevel)}</span></span>}</div><div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:6,marginBottom:8}}>{[{l:"Entry",v:"$"+fmt(t.entryLow)+"–"+fmt(t.entryHigh),c:"#8b5cf6"},{l:"Target",v:"$"+fmt(t.targetLow)+"–"+fmt(t.targetHigh),c:"#22c55e"},{l:"Stop",v:"$"+fmt(t.stop),c:"#ef4444"},{l:"R/R",v:t.rr,c:"#f59e0b"}].map(function(x,j){return(<div key={j} style={{background:"#0a0e17",borderRadius:8,padding:"7px 9px"}}><div style={{fontSize:9,color:"#64748b",marginBottom:2}}>{x.l}</div><div style={{fontSize:mob?11:13,fontWeight:600,color:x.c,wordBreak:"break-all"}}>{x.v}</div></div>);})}</div><div style={{marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:3}}>Confidence</div><ConfBar value={t.confidence}/></div><div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"8px 0",borderTop:"1px solid #1e293b"}}><span style={{fontSize:10,color:"#8b5cf6",fontWeight:600}}>📋 Paper:</span>{am.map(function(a){var ok=a+a*(fees.tk/100)<=bal;return(<button key={a} onClick={function(){enT(t,a);}} disabled={!ok} style={{background:ok?"#8b5cf620":"#1e293b",border:"1px solid "+(ok?"#8b5cf6":"#334155"),borderRadius:8,padding:mob?"7px 12px":"7px 16px",fontSize:12,fontWeight:700,cursor:ok?"pointer":"not-allowed",color:ok?"#f8fafc":"#475569"}}>${a}</button>);})}</div>{!mob&&<TExamples trade={t} amounts={am} fees={{mk:fees.mk,tk:fees.tk}} mobile={false}/>}</div>);})}</div>
+        </>)}
+        {!hp&&<div style={{textAlign:"center",padding:"50px 20px"}}><div style={{fontSize:36,marginBottom:12}}>📡</div><div style={{fontSize:16,fontWeight:600,color:"#f8fafc"}}>Connecting...</div></div>}
       </>)}
 
-      {/* ===== TRADE LOG PAGE ===== */}
-      {storageLoaded && page === "log" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(6,1fr)", gap: 8, marginBottom: 14 }}>
-            {[
-              { l: "Total Trades", v: closedTrades.length, c: "#f8fafc" },
-              { l: "Wins", v: wins, c: "#22c55e" },
-              { l: "Losses", v: closedTrades.length - wins, c: "#ef4444" },
-              { l: "Win Rate", v: closedTrades.length > 0 ? ((wins / closedTrades.length) * 100).toFixed(0) + "%" : "—", c: "#f59e0b" },
-              { l: "Total P&L", v: (closedPnl >= 0 ? "+" : "") + "$" + fmt(closedPnl), c: closedPnl >= 0 ? "#22c55e" : "#ef4444" },
-              { l: "Avg P&L", v: closedTrades.length > 0 ? ((closedPnl / closedTrades.length) >= 0 ? "+" : "") + "$" + fmt(closedPnl / closedTrades.length) : "—", c: closedPnl >= 0 ? "#22c55e" : "#ef4444" },
-            ].map(function (item, i) { return (
-              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", marginBottom: 3 }}>{item.l}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: item.c }}>{item.v}</div>
-              </div>
-            ); })}
-          </div>
+      {sl&&pg==="log"&&(<div>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(6,1fr)",gap:8,marginBottom:12}}>{[{l:"Trades",v:ct.length,c:"#f8fafc"},{l:"Wins",v:wins,c:"#22c55e"},{l:"Losses",v:ct.length-wins,c:"#ef4444"},{l:"Win%",v:ct.length>0?((wins/ct.length)*100).toFixed(0)+"%":"—",c:"#f59e0b"},{l:"P&L",v:(cPnl>=0?"+":"")+"$"+fmt(cPnl),c:cPnl>=0?"#22c55e":"#ef4444"},{l:"Avg",v:ct.length>0?((cPnl/ct.length)>=0?"+":"")+"$"+fmt(cPnl/ct.length):"—",c:cPnl>=0?"#22c55e":"#ef4444"}].map(function(x,i){return(<div key={i} style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"#64748b",marginBottom:3}}>{x.l}</div><div style={{fontSize:18,fontWeight:700,color:x.c}}>{x.v}</div></div>);})}</div>
+        <EqCurve closedTrades={ct} mobile={mob}/>
+        {ot.length>0&&(<div style={{marginBottom:14}}><h3 style={{fontSize:14,fontWeight:600,color:"#f8fafc",margin:"0 0 10px"}}>🟢 Open ({ot.length})</h3>{ot.map(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice;var pnl=t.coins*cp*(1-fees.mk/100)-t.investAmt-t.entryFee;var pp=(pnl/t.investAmt)*100;var isE=et===t.id;return(<div key={t.id} style={{background:"#111827",border:"1px solid "+(pnl>=0?"#22c55e30":"#ef444430"),borderRadius:12,padding:"12px 14px",marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8,cursor:"pointer"}} onClick={function(){sEt(isE?null:t.id);}}><div><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontWeight:700,fontSize:15,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:"#06b6d420",color:"#06b6d4",fontWeight:600}}>{t.type}</span>{t.riskLabel&&<span style={{fontSize:9,padding:"2px 5px",borderRadius:4,background:"#1e293b",color:"#64748b"}}>{t.riskLabel}</span>}</div><div style={{fontSize:10,color:"#64748b"}}>{t.enteredAt}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:16,fontWeight:700,color:pnl>=0?"#22c55e":"#ef4444"}}>{pnl>=0?"+":""}${fmt(pnl)}</div><div style={{fontSize:10,color:pnl>=0?"#22c55e":"#ef4444"}}>{pp.toFixed(1)}%</div></div></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,fontSize:10}}><div><span style={{color:"#64748b"}}>Invest: </span><span style={{color:"#f8fafc",fontWeight:600}}>${t.investAmt}</span></div><div><span style={{color:"#64748b"}}>Entry: </span><span style={{color:"#8b5cf6",fontWeight:600}}>${fmt(t.entryPrice)}</span></div><div><span style={{color:"#64748b"}}>TP: </span><span style={{color:"#22c55e",fontWeight:600}}>${fmt(t.targetPrice)}</span></div><div><span style={{color:"#64748b"}}>SL: </span><span style={{color:"#ef4444",fontWeight:600}}>${fmt(t.stopPrice)}</span></div></div>
+          <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}><button onClick={function(e){e.stopPropagation();clT(t.id,"Manual");}} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:6,padding:"5px 12px",fontSize:11,color:"#ef4444",cursor:"pointer",fontWeight:600}}>Close</button><button onClick={function(){sEt(isE?null:t.id);}} style={{background:"#1e293b",border:"1px solid #334155",borderRadius:6,padding:"5px 12px",fontSize:11,color:"#94a3b8",cursor:"pointer"}}>{isE?"Hide":"Chart"}</button><button onClick={function(e){e.stopPropagation();if(eti===t.id){sEti(null);}else{sEti(t.id);sEtp(t.targetPrice.toString());sEsl(t.stopPrice.toString());}}} style={{background:"#8b5cf620",border:"1px solid #8b5cf640",borderRadius:6,padding:"5px 12px",fontSize:11,color:"#8b5cf6",cursor:"pointer"}}>{eti===t.id?"Cancel":"TP/SL"}</button></div>
+          {eti===t.id&&(<div style={{background:"#0a0e17",borderRadius:8,padding:10,marginTop:8,display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}} onClick={function(e){e.stopPropagation();}}><div><div style={{fontSize:9,color:"#22c55e",marginBottom:3}}>TARGET</div><input value={etp} onChange={function(e){sEtp(e.target.value);}} style={{background:"#111827",border:"1px solid #22c55e40",borderRadius:6,padding:"6px 10px",fontSize:13,color:"#22c55e",width:100,outline:"none"}}/></div><div><div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>STOP</div><input value={esl} onChange={function(e){sEsl(e.target.value);}} style={{background:"#111827",border:"1px solid #ef444440",borderRadius:6,padding:"6px 10px",fontSize:13,color:"#ef4444",width:100,outline:"none"}}/></div><button onClick={function(){modT(t.id);}} style={{background:"#8b5cf6",color:"#fff",border:"none",borderRadius:6,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply</button></div>)}
+          {isE&&<TChart trade={t} cp={cp} mobile={mob}/>}
+        </div>);})}</div>)}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><h3 style={{fontSize:14,fontWeight:600,color:"#f8fafc",margin:0}}>📜 History ({ct.length})</h3><div style={{display:"flex",gap:4}}>{["all","wins","losses"].map(function(f){return(<button key={f} onClick={function(){sLf(f);}} style={{background:lf===f?"#8b5cf6":"#1e293b",color:lf===f?"#fff":"#64748b",border:"none",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{f}</button>);})}</div></div>
+        {ct.length===0&&<div style={{textAlign:"center",padding:"30px",color:"#64748b"}}><div style={{fontSize:28,marginBottom:6}}>📭</div><div style={{fontSize:13}}>No trades yet</div></div>}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>{ct.slice().reverse().filter(function(t){if(lf==="wins")return t.pnl>0;if(lf==="losses")return t.pnl<=0;return true;}).map(function(t,i){var w2=t.pnl>0,isE2=ec===i;return(<div key={i} style={{background:"#111827",border:"1px solid "+(w2?"#22c55e20":"#ef444420"),borderRadius:12,padding:mob?"12px":"14px 16px",cursor:"pointer"}} onClick={function(){sEc(isE2?null:i);}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:6}}><div><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontSize:15,fontWeight:700,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:w2?"#22c55e20":"#ef444420",color:w2?"#22c55e":"#ef4444",fontWeight:600}}>{t.type}</span><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:w2?"#22c55e15":"#ef444415",color:w2?"#22c55e":"#ef4444",fontWeight:700}}>{t.reason}</span>{t.riskLabel&&<span style={{fontSize:9,padding:"2px 5px",borderRadius:4,background:"#1e293b",color:"#64748b"}}>{t.riskLabel}</span>}<span style={{fontSize:9,color:"#475569"}}>{isE2?"▲":"▼"}</span></div><div style={{fontSize:10,color:"#64748b"}}>{t.rr&&<span>R/R:{t.rr} · </span>}{t.duration&&<span>{t.duration}</span>}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:700,color:w2?"#22c55e":"#ef4444"}}>{t.pnl>=0?"+":""}${fmt(t.pnl)}</div><div style={{fontSize:12,color:w2?"#22c55e":"#ef4444"}}>{t.pnlPct>=0?"+":""}{t.pnlPct.toFixed(1)}%</div></div></div>{isE2&&(<div><div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:6,marginBottom:6}}><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>INVESTED</div><div style={{fontSize:13,fontWeight:600,color:"#f8fafc"}}>${t.investAmt}</div></div><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>ENTRY→EXIT</div><div style={{fontSize:13,fontWeight:600,color:"#f8fafc"}}>${fmt(t.entryPrice)}→${fmt(t.exitPrice)}</div></div><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>FEES</div><div style={{fontSize:13,fontWeight:600,color:"#f97316"}}>${fmt(t.entryFee+(t.exitFee||0))}</div></div><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>COINS</div><div style={{fontSize:13,fontWeight:600,color:"#94a3b8"}}>{fmt(t.coins)}</div></div></div><ClosedChart trade={t} mobile={mob}/></div>)}<div style={{display:"flex",gap:mob?10:20,fontSize:10,color:"#475569",marginTop:isE2?6:0}}><span>📥 {t.enteredAt}</span><span>📤 {t.closedAt}</span></div></div>);})}</div>
+      </div>)}
 
-          {openTrades.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: "0 0 10px" }}>🟢 Open Trades ({openTrades.length})</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {openTrades.map(function (t) {
-                  var cp = merged[t.coinId] ? merged[t.coinId].price : t.entryPrice;
-                  var pnl = t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee;
-                  var pnlPct = (pnl / t.investAmt) * 100;
-                  var isExp = expTrade === t.id;
-                  return (
-                    <div key={t.id} style={{ background: "#111827", border: "1px solid " + (pnl >= 0 ? "#22c55e30" : "#ef444430"), borderRadius: 12, padding: mob ? "12px" : "14px 16px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8, cursor: "pointer" }} onClick={function () { setExpTrade(isExp ? null : t.id); }}>
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                            <span style={{ fontWeight: 700, fontSize: 16, color: "#f8fafc" }}>{t.symbol}</span>
-                            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: "#06b6d420", color: "#06b6d4", fontWeight: 600 }}>{t.type}</span>
-                            {t.riskLabel && <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: "#1e293b", color: "#64748b" }}>{t.riskLabel}</span>}
-                          </div>
-                          <div style={{ fontSize: 10, color: "#64748b" }}>Opened: {t.enteredAt}</div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>{pnl >= 0 ? "+" : ""}${fmt(pnl)}</div>
-                          <div style={{ fontSize: 11, color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>{pnlPct.toFixed(1)}%</div>
-                        </div>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, fontSize: 10 }}>
-                        <div><span style={{ color: "#64748b" }}>Invest: </span><span style={{ color: "#f8fafc", fontWeight: 600 }}>${t.investAmt}</span></div>
-                        <div><span style={{ color: "#64748b" }}>Entry: </span><span style={{ color: "#8b5cf6", fontWeight: 600 }}>${fmt(t.entryPrice)}</span></div>
-                        <div><span style={{ color: "#64748b" }}>Target: </span><span style={{ color: "#22c55e", fontWeight: 600 }}>${fmt(t.targetPrice)}</span></div>
-                        <div><span style={{ color: "#64748b" }}>Stop: </span><span style={{ color: "#ef4444", fontWeight: 600 }}>${fmt(t.stopPrice)}</span></div>
-                      </div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                        <button onClick={function (e) { e.stopPropagation(); closeTrade(t.id, "Manual"); }} style={{ background: "#ef444420", border: "1px solid #ef444440", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "#ef4444", cursor: "pointer", fontWeight: 600 }}>Close Trade</button>
-                        <button onClick={function () { setExpTrade(isExp ? null : t.id); }} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 6, padding: "5px 12px", fontSize: 11, color: "#94a3b8", cursor: "pointer" }}>{isExp ? "Hide Chart" : "Show Chart"}</button>
-                      </div>
-                      {isExp && <TradeChartComponent trade={t} currentPrice={cp} mobile={mob} />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: "#f8fafc", margin: 0 }}>📜 Trade History ({closedTrades.length})</h3>
-            <div style={{ display: "flex", gap: 4 }}>
-              {["all", "wins", "losses"].map(function (f) { return (
-                <button key={f} onClick={function () { setLogFilter(f); }} style={{ background: logFilter === f ? "#8b5cf6" : "#1e293b", color: logFilter === f ? "#fff" : "#64748b", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{f}</button>
-              ); })}
-            </div>
-          </div>
-
-          {closedTrades.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
-              <div style={{ fontSize: 30, marginBottom: 8 }}>📭</div>
-              <div style={{ fontSize: 14 }}>No trades yet. Place a paper trade from the Dashboard!</div>
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {closedTrades.slice().reverse().filter(function (t) {
-              if (logFilter === "wins") return t.pnl > 0;
-              if (logFilter === "losses") return t.pnl <= 0;
-              return true;
-            }).map(function (t, i) {
-              var isWin = t.pnl > 0;
-              return (
-                <div key={i} style={{ background: "#111827", border: "1px solid " + (isWin ? "#22c55e20" : "#ef444420"), borderRadius: 12, padding: mob ? "12px" : "14px 16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>{t.symbol}</span>
-                        <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: isWin ? "#22c55e20" : "#ef444420", color: isWin ? "#22c55e" : "#ef4444", fontWeight: 600 }}>{t.type}</span>
-                        <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: isWin ? "#22c55e15" : "#ef444415", color: isWin ? "#22c55e" : "#ef4444", fontWeight: 700 }}>{t.reason}</span>
-                        {t.riskLabel && <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: "#1e293b", color: "#64748b" }}>{t.riskLabel}</span>}
-                      </div>
-                      <div style={{ fontSize: 10, color: "#64748b" }}>{t.rr && <span>R/R: {t.rr} · </span>}{t.duration && <span>Duration: {t.duration}</span>}</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: isWin ? "#22c55e" : "#ef4444" }}>{t.pnl >= 0 ? "+" : ""}${fmt(t.pnl)}</div>
-                      <div style={{ fontSize: 12, color: isWin ? "#22c55e" : "#ef4444" }}>{t.pnlPct >= 0 ? "+" : ""}{t.pnlPct.toFixed(1)}%</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: mob ? 6 : 8, marginBottom: 8 }}>
-                    <div style={{ background: "#0a0e17", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>INVESTED</div><div style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>${t.investAmt.toLocaleString()}</div></div>
-                    <div style={{ background: "#0a0e17", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>ENTRY → EXIT</div><div style={{ fontSize: 13, fontWeight: 600, color: "#f8fafc" }}>${fmt(t.entryPrice)} → ${fmt(t.exitPrice)}</div></div>
-                    <div style={{ background: "#0a0e17", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>FEES</div><div style={{ fontSize: 13, fontWeight: 600, color: "#f97316" }}>${fmt(t.entryFee + (t.exitFee || 0))}</div></div>
-                    <div style={{ background: "#0a0e17", borderRadius: 8, padding: "8px 10px" }}><div style={{ fontSize: 9, color: "#64748b" }}>COINS</div><div style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8" }}>{fmt(t.coins)}</div></div>
-                  </div>
-                  <div style={{ display: "flex", gap: mob ? 10 : 20, fontSize: 10, color: "#475569" }}>
-                    <span>📥 Opened: <span style={{ color: "#94a3b8" }}>{t.enteredAt}</span></span>
-                    <span>📤 Closed: <span style={{ color: "#94a3b8" }}>{t.closedAt}</span></span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginTop: 20, padding: "10px", background: "#1e293b40", borderRadius: 10, border: "1px solid #1e293b" }}>
-        <p style={{ fontSize: 10, color: "#64748b", margin: 0, lineHeight: 1.6 }}>⚠️ <strong style={{ color: "#94a3b8" }}>Disclaimer:</strong> Paper trading uses simulated money. Trade signals use Kraken OHLC analysis (S/R, ATR, RSI, momentum, trend). Not financial advice. Crypto involves significant risk.</p>
-      </div>
+      <div style={{marginTop:20,padding:"10px",background:"#1e293b40",borderRadius:10,border:"1px solid #1e293b"}}><p style={{fontSize:10,color:"#64748b",margin:0,lineHeight:1.6}}>⚠️ <strong style={{color:"#94a3b8"}}>Disclaimer:</strong> Paper trading uses simulated money. Signals use Kraken OHLC analysis. Not financial advice.</p></div>
       <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>
     </div>
   );
