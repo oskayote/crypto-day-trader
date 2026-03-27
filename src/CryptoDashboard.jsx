@@ -1,245 +1,1703 @@
-/* Crypto Day Trader — Full Code for Vercel Deployment
-   Copy this entire file to src/CryptoDashboard.jsx in your GitHub repo */
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+/* ═══════════════════════════════════════════════════════════════
+   CONSTANTS & CONFIG
+   ═══════════════════════════════════════════════════════════════ */
 
-var COINS = [
-  { id:"bitcoin",symbol:"BTC",name:"Bitcoin",binance:"BTCUSDT",cc:"BTC",krakenWs:"XBT/USD",krakenOhlc:"XXBTZUSD" },
-  { id:"ethereum",symbol:"ETH",name:"Ethereum",binance:"ETHUSDT",cc:"ETH",krakenWs:"ETH/USD",krakenOhlc:"XETHZUSD" },
-  { id:"solana",symbol:"SOL",name:"Solana",binance:"SOLUSDT",cc:"SOL",krakenWs:"SOL/USD",krakenOhlc:"SOLUSD" },
-  { id:"ripple",symbol:"XRP",name:"Ripple",binance:"XRPUSDT",cc:"XRP",krakenWs:"XRP/USD",krakenOhlc:"XXRPZUSD" },
-  { id:"cardano",symbol:"ADA",name:"Cardano",binance:"ADAUSDT",cc:"ADA",krakenWs:"ADA/USD",krakenOhlc:"ADAUSD" },
-  { id:"dogecoin",symbol:"DOGE",name:"Dogecoin",binance:"DOGEUSDT",cc:"DOGE",krakenWs:"DOGE/USD",krakenOhlc:"XDGUSD" },
-  { id:"polkadot",symbol:"DOT",name:"Polkadot",binance:"DOTUSDT",cc:"DOT",krakenWs:"DOT/USD",krakenOhlc:"DOTUSD" },
-  { id:"avalanche-2",symbol:"AVAX",name:"Avalanche",binance:"AVAXUSDT",cc:"AVAX",krakenWs:"AVAX/USD",krakenOhlc:"AVAXUSD" },
-  { id:"chainlink",symbol:"LINK",name:"Chainlink",binance:"LINKUSDT",cc:"LINK",krakenWs:"LINK/USD",krakenOhlc:"LINKUSD" },
-  { id:"polygon",symbol:"POL",name:"Polygon",binance:"POLUSDT",cc:"POL",krakenWs:"POL/USD",krakenOhlc:"POLUSD" }
+const COINS = [
+  { id: "bitcoin", symbol: "BTC", name: "Bitcoin", binance: "BTCUSDT", cc: "BTC", krakenWs: "XBT/USD", krakenOhlc: "XXBTZUSD", color: "#F7931A" },
+  { id: "ethereum", symbol: "ETH", name: "Ethereum", binance: "ETHUSDT", cc: "ETH", krakenWs: "ETH/USD", krakenOhlc: "XETHZUSD", color: "#627EEA" },
+  { id: "solana", symbol: "SOL", name: "Solana", binance: "SOLUSDT", cc: "SOL", krakenWs: "SOL/USD", krakenOhlc: "SOLUSD", color: "#9945FF" },
+  { id: "ripple", symbol: "XRP", name: "Ripple", binance: "XRPUSDT", cc: "XRP", krakenWs: "XRP/USD", krakenOhlc: "XXRPZUSD", color: "#00AAE4" },
+  { id: "cardano", symbol: "ADA", name: "Cardano", binance: "ADAUSDT", cc: "ADA", krakenWs: "ADA/USD", krakenOhlc: "ADAUSD", color: "#0033AD" },
+  { id: "dogecoin", symbol: "DOGE", name: "Dogecoin", binance: "DOGEUSDT", cc: "DOGE", krakenWs: "DOGE/USD", krakenOhlc: "XDGUSD", color: "#C2A633" },
+  { id: "polkadot", symbol: "DOT", name: "Polkadot", binance: "DOTUSDT", cc: "DOT", krakenWs: "DOT/USD", krakenOhlc: "DOTUSD", color: "#E6007A" },
+  { id: "avalanche-2", symbol: "AVAX", name: "Avalanche", binance: "AVAXUSDT", cc: "AVAX", krakenWs: "AVAX/USD", krakenOhlc: "AVAXUSD", color: "#E84142" },
+  { id: "chainlink", symbol: "LINK", name: "Chainlink", binance: "LINKUSDT", cc: "LINK", krakenWs: "LINK/USD", krakenOhlc: "LINKUSD", color: "#2A5ADA" },
+  { id: "polygon", symbol: "POL", name: "Polygon", binance: "POLUSDT", cc: "POL", krakenWs: "POL/USD", krakenOhlc: "POLUSD", color: "#8247E5" },
 ];
-var RISK = [
-  { label:"Conservative",emoji:"🛡️",color:"#22c55e",tm:0.7,sm:0.7 },
-  { label:"Moderate",emoji:"⚖️",color:"#f59e0b",tm:1.0,sm:1.0 },
-  { label:"Aggressive",emoji:"🔥",color:"#ef4444",tm:1.5,sm:1.3 }
+
+const RISK_PROFILES = [
+  { label: "Conservative", icon: "◆", color: "#26a69a", targetMul: 0.7, stopMul: 0.7, desc: "Tighter targets, tighter stops" },
+  { label: "Moderate", icon: "◈", color: "#d4a017", targetMul: 1.0, stopMul: 1.0, desc: "Balanced risk/reward" },
+  { label: "Aggressive", icon: "◇", color: "#ef5350", targetMul: 1.5, stopMul: 1.3, desc: "Wider targets, wider stops" },
 ];
-var FTIERS = [
-  { label:"Starter",mk:0.16,tk:0.26 },{ label:"Intermediate",mk:0.14,tk:0.24 },
-  { label:"Advanced",mk:0.12,tk:0.22 },{ label:"Pro",mk:0.08,tk:0.18 },
-  { label:"Expert",mk:0.04,tk:0.14 },{ label:"Elite",mk:0.00,tk:0.10 }
+
+const FEE_TIERS = [
+  { label: "Starter", maker: 0.16, taker: 0.26 },
+  { label: "Intermediate", maker: 0.14, taker: 0.24 },
+  { label: "Advanced", maker: 0.12, taker: 0.22 },
+  { label: "Pro", maker: 0.08, taker: 0.18 },
+  { label: "Expert", maker: 0.04, taker: 0.14 },
+  { label: "Elite", maker: 0.00, taker: 0.10 },
 ];
-var FB = {bitcoin:{p:84250,c:-0.8},ethereum:{p:1835,c:1.2},solana:{p:138.5,c:-2.1},ripple:{p:2.34,c:3.5},cardano:{p:0.71,c:-0.4},dogecoin:{p:0.168,c:1.8},polkadot:{p:4.12,c:0.6},"avalanche-2":{p:21.4,c:-1.5},chainlink:{p:13.8,c:2.3},polygon:{p:0.22,c:-0.3}};
 
-function fmt(v){if(v==null||isNaN(v))return"—";if(Math.abs(v)>=1000)return v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});if(Math.abs(v)>=1)return v.toFixed(2);if(Math.abs(v)>=0.01)return v.toFixed(4);return v.toFixed(6);}
-function genSpark(b,ch){var d=[],v=b*(1-Math.abs(ch)/100);for(var i=0;i<48;i++){v+=v*((ch>0?0.3:-0.3)+(Math.random()-0.5)*1.2)/100;d.push(v);}return d;}
-async function sf(url){var c=new AbortController();var t=setTimeout(function(){c.abort();},6000);var r=await fetch(url,{signal:c.signal,mode:"cors"});clearTimeout(t);if(!r.ok)throw new Error(r.status);return r.json();}
+const FALLBACK_PRICES = {
+  bitcoin: { price: 84250, change: -0.8 },
+  ethereum: { price: 1835, change: 1.2 },
+  solana: { price: 138.5, change: -2.1 },
+  ripple: { price: 2.34, change: 3.5 },
+  cardano: { price: 0.71, change: -0.4 },
+  dogecoin: { price: 0.168, change: 1.8 },
+  polkadot: { price: 4.12, change: 0.6 },
+  "avalanche-2": { price: 21.4, change: -1.5 },
+  chainlink: { price: 13.8, change: 2.3 },
+  polygon: { price: 0.22, change: -0.3 },
+};
 
-/* Storage: works with both window.storage (Claude) and localStorage (Vercel) */
-function sGet(k){return new Promise(function(res){try{var v=localStorage.getItem(k);res(v);}catch(e){res(null);}});}
-function sSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
-function sDel(k){try{localStorage.removeItem(k);}catch(e){}}
+const TRADE_TYPE_COLORS = {
+  Scalp: "#26c6da",
+  Long: "#26a69a",
+  Breakout: "#ffb74d",
+  "Dip Buy": "#ab47bc",
+  Momentum: "#ff7043",
+  Reversal: "#ec407a",
+};
 
-function MiniC(props){var d=props.data,col=props.color,m=props.mobile;if(!d||d.length<2)return null;var h=m?28:34,w=m?85:105;var mn=Math.min.apply(null,d),mx=Math.max.apply(null,d),rg=mx-mn||1;var pts=d.map(function(v,i){return(i/(d.length-1))*w+","+(h-((v-mn)/rg)*h);}).join(" ");var g="g"+Math.random().toString(36).slice(2,7);return(<svg width={w} height={h} viewBox={"0 0 "+w+" "+h}><defs><linearGradient id={g} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={col} stopOpacity="0.3"/><stop offset="100%" stopColor={col} stopOpacity="0"/></linearGradient></defs><polygon points={"0,"+h+" "+pts+" "+w+","+h} fill={"url(#"+g+")"}/><polyline points={pts} fill="none" stroke={col} strokeWidth="2"/></svg>);}
-function ConfBar(props){var v=props.value;var bg=v>=70?"#22c55e":v>=50?"#f59e0b":"#ef4444";return(<div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,borderRadius:3,background:"#1e293b"}}><div style={{width:v+"%",height:"100%",borderRadius:3,background:bg}}/></div><span style={{fontSize:12,color:"#94a3b8",minWidth:28}}>{v}%</span></div>);}
-function SDot(props){var s=props.status,l=props.label;var c=s==="live"?"#22c55e":s==="error"?"#ef4444":"#f59e0b";return(<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}><div style={{width:6,height:6,borderRadius:"50%",background:c,boxShadow:s==="live"?"0 0 5px "+c:"none"}}/><span style={{color:s==="live"?"#94a3b8":"#64748b"}}>{l}</span></div>);}
+/* ═══════════════════════════════════════════════════════════════
+   UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════════════ */
 
-function TChart(props){
-  var tr=props.trade,cp=props.cp,m=props.mobile;var hist=tr.priceHistory||[];
-  if(hist.length<2)return(<div style={{background:"#0a0e17",borderRadius:8,padding:10,marginTop:6,textAlign:"center",color:"#64748b",fontSize:10}}>Collecting data... ({hist.length} ticks)</div>);
-  var W=m?310:480,H=m?120:110,pL=28,pR=48,pT=8,pB=14;var cW=W-pL-pR,cH=H-pT-pB;
-  var ap=hist.map(function(h){return h.p;});ap.push(tr.targetPrice,tr.stopPrice,tr.entryPrice);if(cp)ap.push(cp);
-  var mx=Math.max.apply(null,ap),mn=Math.min.apply(null,ap),rg=mx-mn||1;mx+=rg*0.05;mn-=rg*0.05;rg=mx-mn;
-  function yP(p){return pT+cH*(1-(p-mn)/rg);}function xP(i){return pL+(i/Math.max(hist.length-1,1))*cW;}
-  var pts=hist.map(function(h,i){return xP(i)+","+yP(h.p);}).join(" ");
-  var eY=yP(tr.entryPrice),tY=yP(tr.targetPrice),sY=yP(tr.stopPrice),lX=xP(hist.length-1),lY=cp?yP(cp):yP(hist[hist.length-1].p);
-  var pnl=cp?cp-tr.entryPrice:0;var pc=(pnl/tr.entryPrice*100).toFixed(2);var col=pnl>=0?"#22c55e":"#ef4444";
-  var fp=pL+","+eY;hist.forEach(function(h,i){fp+=" "+xP(i)+","+yP(h.p);});fp+=" "+lX+","+eY;
-  var st2=new Date(hist[0].t),en=new Date(hist[hist.length-1].t);var el=Math.round((en-st2)/1000);var es=el<60?el+"s":Math.floor(el/60)+"m "+el%60+"s";
-  return(<div style={{background:"#0a0e17",borderRadius:8,padding:m?6:8,marginTop:6,maxWidth:m?"100%":500}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{fontSize:10,fontWeight:700,color:"#f8fafc"}}>📊 {tr.symbol}</span><span style={{fontSize:10,color:col,fontWeight:700}}>{pnl>=0?"+":""}{pc}%</span></div><span style={{fontSize:9,color:"#64748b"}}>⏱{es} · {hist.length}t</span></div><svg width={W} height={H} viewBox={"0 0 "+W+" "+H} style={{display:"block",width:"100%",height:"auto"}}><rect x={pL} y={tY} width={cW} height={Math.max(0,eY-tY)} fill="#22c55e06"/><rect x={pL} y={eY} width={cW} height={Math.max(0,sY-eY)} fill="#ef444406"/><line x1={pL} y1={tY} x2={pL+cW} y2={tY} stroke="#22c55e" strokeWidth="0.8" strokeDasharray="5,3"/><line x1={pL} y1={eY} x2={pL+cW} y2={eY} stroke="#8b5cf6" strokeWidth="0.8" strokeDasharray="5,3"/><line x1={pL} y1={sY} x2={pL+cW} y2={sY} stroke="#ef4444" strokeWidth="0.8" strokeDasharray="5,3"/><polygon points={fp} fill={col} fillOpacity="0.07"/><polyline points={pts} fill="none" stroke={col} strokeWidth="2" strokeLinejoin="round"/><circle cx={pL} cy={eY} r="4" fill="#8b5cf6" stroke="#0a0e17" strokeWidth="1.5"/><circle cx={lX} cy={lY} r="5" fill={col} stroke="#0a0e17" strokeWidth="1.5"/><text x={2} y={tY+3} fill="#22c55e" fontSize="7">TP</text><text x={2} y={eY+3} fill="#8b5cf6" fontSize="7">In</text><text x={2} y={sY+3} fill="#ef4444" fontSize="7">SL</text><text x={pL+cW+2} y={eY+3} fill="#8b5cf6" fontSize="7">{"$"+fmt(tr.entryPrice)}</text><text x={pL+cW+2} y={tY+3} fill="#22c55e" fontSize="7">{"$"+fmt(tr.targetPrice)}</text><text x={pL+cW+2} y={sY+3} fill="#ef4444" fontSize="7">{"$"+fmt(tr.stopPrice)}</text>{cp&&<text x={pL+cW+2} y={lY+3} fill={col} fontSize="8" fontWeight="700">{"$"+fmt(cp)}</text>}</svg></div>);
+function formatPrice(v) {
+  if (v == null || isNaN(v)) return "—";
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(2) + "M";
+  if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (Math.abs(v) >= 1) return v.toFixed(2);
+  if (Math.abs(v) >= 0.01) return v.toFixed(4);
+  return v.toFixed(6);
 }
 
-function ClosedChart(props){
-  var tr=props.trade,m=props.mobile;var hist=tr.chartSnapshot||[];
-  if(hist.length<3)return(<div style={{fontSize:10,color:"#475569",padding:6}}>No chart data</div>);
-  var W=m?300:440,H=m?90:80,pL=24,pR=44,pT=6,pB=8;var cW=W-pL-pR,cH=H-pT-pB;
-  var ap2=hist.map(function(h){return h.p;});ap2.push(tr.targetPrice,tr.stopPrice,tr.entryPrice,tr.exitPrice);
-  var mx=Math.max.apply(null,ap2),mn=Math.min.apply(null,ap2),rg=mx-mn||1;mx+=rg*0.05;mn-=rg*0.05;rg=mx-mn;
-  function yP(p){return pT+cH*(1-(p-mn)/rg);}function xP(i){return pL+(i/Math.max(hist.length-1,1))*cW;}
-  var pts=hist.map(function(h,i){return xP(i)+","+yP(h.p);}).join(" ");
-  var eY=yP(tr.entryPrice),exY=yP(tr.exitPrice),tY=yP(tr.targetPrice),sY2=yP(tr.stopPrice);
-  var w2=tr.pnl>=0;var col=w2?"#22c55e":"#ef4444";
-  return(<div style={{background:"#0a0e17",borderRadius:8,padding:4,marginTop:4,maxWidth:m?"100%":460}}><svg width={W} height={H} viewBox={"0 0 "+W+" "+H} style={{display:"block",width:"100%",height:"auto"}}><line x1={pL} y1={tY} x2={pL+cW} y2={tY} stroke="#22c55e" strokeWidth="0.6" strokeDasharray="4,3"/><line x1={pL} y1={eY} x2={pL+cW} y2={eY} stroke="#8b5cf6" strokeWidth="0.6" strokeDasharray="4,3"/><line x1={pL} y1={sY2} x2={pL+cW} y2={sY2} stroke="#ef4444" strokeWidth="0.6" strokeDasharray="4,3"/><polyline points={pts} fill="none" stroke={col} strokeWidth="1.8" strokeLinejoin="round"/><circle cx={pL} cy={eY} r="3" fill="#8b5cf6"/><circle cx={xP(hist.length-1)} cy={exY} r="3.5" fill={col} stroke="#0a0e17" strokeWidth="1"/><text x={1} y={tY+3} fill="#22c55e" fontSize="6">TP</text><text x={1} y={eY+3} fill="#8b5cf6" fontSize="6">In</text><text x={1} y={sY2+3} fill="#ef4444" fontSize="6">SL</text><text x={pL+cW+2} y={exY+3} fill={col} fontSize="7" fontWeight="700">{"$"+fmt(tr.exitPrice)}</text></svg></div>);
+function formatCompact(v) {
+  if (v >= 1e12) return (v / 1e12).toFixed(2) + "T";
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + "B";
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
+  return v.toFixed(0);
 }
 
-function EqCurve(props){
-  var ctr=props.closedTrades,sb=5000,m=props.mobile;if(ctr.length<2)return null;
-  var W=m?310:480,H=m?90:100,pL=42,pR=8,pT=8,pB=14;var cW=W-pL-pR,cH=H-pT-pB;
-  var eq=[sb];ctr.forEach(function(t){eq.push(eq[eq.length-1]+t.pnl);});
-  var mx=Math.max.apply(null,eq),mn=Math.min.apply(null,eq),rg=mx-mn||1;mx+=rg*0.05;mn-=rg*0.05;rg=mx-mn;
-  function yE(v){return pT+cH*(1-(v-mn)/rg);}
-  var pts=eq.map(function(v,i){return(pL+(i/Math.max(eq.length-1,1))*cW)+","+yE(v);}).join(" ");
-  var fp=pL+","+yE(sb)+" "+pts+" "+(pL+cW)+","+yE(sb);
-  var fin=eq[eq.length-1],tp=fin-sb,col=tp>=0?"#22c55e":"#ef4444";
-  return(<div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:m?"8px":"12px",marginBottom:12}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{fontSize:11,fontWeight:700,color:"#f8fafc"}}>📈 Equity</span><span style={{fontSize:11,fontWeight:700,color:col}}>{tp>=0?"+":""}${fmt(tp)} ({((tp/sb)*100).toFixed(1)}%)</span></div><svg width={W} height={H} viewBox={"0 0 "+W+" "+H} style={{display:"block",width:"100%",height:"auto"}}><line x1={pL} y1={yE(sb)} x2={pL+cW} y2={yE(sb)} stroke="#64748b" strokeWidth="0.4" strokeDasharray="3,3"/><polygon points={fp} fill={col} fillOpacity="0.1"/><polyline points={pts} fill="none" stroke={col} strokeWidth="2.5" strokeLinejoin="round"/><circle cx={pL} cy={yE(sb)} r="3" fill="#64748b"/><circle cx={pL+cW} cy={yE(fin)} r="4" fill={col} stroke="#0a0e17" strokeWidth="1.5"/><text x={pL-2} y={yE(sb)+3} fill="#64748b" fontSize="7" textAnchor="end">{"$"+sb}</text><text x={pL+cW+2} y={yE(fin)+3} fill={col} fontSize="7">{"$"+fin.toFixed(0)}</text></svg></div>);
+function generateSparkline(basePrice, changePercent) {
+  const data = [];
+  let value = basePrice * (1 - Math.abs(changePercent) / 100);
+  for (let i = 0; i < 48; i++) {
+    value += value * ((changePercent > 0 ? 0.3 : -0.3) + (Math.random() - 0.5) * 1.2) / 100;
+    data.push(value);
+  }
+  return data;
 }
 
-function TExamples(props){
-  var tr=props.trade,amts=props.amounts,fe=props.fees,m=props.mobile;
-  var ep=(tr.entryLow+tr.entryHigh)/2,tp=(tr.targetLow+tr.targetHigh)/2,ef=fe.tk/100,xf=fe.mk/100;
-  if(m){return(<div style={{marginTop:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:4}}>EXAMPLES <span style={{color:"#f97316",fontWeight:700}}>• Fees</span></div>{amts.map(function(a,i){var co=a/ep,nt=co*tp*(1-xf)-a*(1+ef)+a,ns=co*tr.stop*(1-xf)-a*(1+ef)+a;return(<div key={i} style={{background:"#0a0e17",borderRadius:8,padding:8,marginBottom:4}}><div style={{fontSize:12,fontWeight:700,color:"#f8fafc",marginBottom:4}}>${a}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:11}}><div><span style={{color:"#64748b"}}>P: </span><span style={{color:"#22c55e",fontWeight:600}}>+${fmt(nt)}</span></div><div><span style={{color:"#64748b"}}>L: </span><span style={{color:"#ef4444",fontWeight:600}}>${fmt(ns)}</span></div></div></div>);})}</div>);}
-  return(<div style={{marginTop:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:4}}>EXAMPLES <span style={{color:"#f97316",fontWeight:700}}>• {fe.tk}%/{fe.mk}%</span></div><table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}><thead><tr style={{borderBottom:"1px solid #1e293b"}}>{["$","Coins","+Profit","P%","-Loss","L%"].map(function(h,i){return(<th key={i} style={{padding:"4px 6px",textAlign:"left",color:"#64748b",fontSize:9,fontWeight:600}}>{h}</th>);})}</tr></thead><tbody>{amts.map(function(a,i){var co=a/ep,nt=co*tp*(1-xf)-a*(1+ef)+a,ns=co*tr.stop*(1-xf)-a*(1+ef)+a;return(<tr key={i}><td style={{padding:"5px 6px",fontWeight:600,color:"#f8fafc"}}>${a}</td><td style={{padding:"5px 6px",color:"#94a3b8"}}>{fmt(co)}</td><td style={{padding:"5px 6px",color:"#22c55e",fontWeight:600}}>+${fmt(nt)}</td><td style={{padding:"5px 6px",color:"#22c55e"}}>{(nt/a*100).toFixed(1)}%</td><td style={{padding:"5px 6px",color:"#ef4444",fontWeight:600}}>${fmt(Math.abs(ns))}</td><td style={{padding:"5px 6px",color:"#ef4444"}}>{(ns/a*100).toFixed(1)}%</td></tr>);})}</tbody></table></div>);
+async function safeFetch(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  const response = await fetch(url, { signal: controller.signal, mode: "cors" });
+  clearTimeout(timeout);
+  if (!response.ok) throw new Error(response.status);
+  return response.json();
 }
 
-function analyzeOhlc(candles){
-  if(!candles||candles.length<10)return null;
-  var r=candles.slice(-14),aS=0;for(var i=1;i<r.length;i++){var h=r[i][2],l=r[i][3],pc=r[i-1][4];aS+=Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc));}var atr=aS/(r.length-1);
-  var cl=candles.map(function(c){return parseFloat(c[4]);}),hi=candles.map(function(c){return parseFloat(c[2]);}),lo=candles.map(function(c){return parseFloat(c[3]);});
-  var al=hi.slice(-20).concat(lo.slice(-20)).sort(function(a,b){return a-b;}),pr=cl[cl.length-1],th=pr*0.003;
-  var clu=[],cu=[al[0]];for(var j=1;j<al.length;j++){if(al[j]-al[j-1]<th)cu.push(al[j]);else{if(cu.length>=2)clu.push(cu.reduce(function(a,b){return a+b;},0)/cu.length);cu=[al[j]];}}if(cu.length>=2)clu.push(cu.reduce(function(a,b){return a+b;},0)/cu.length);
-  var sup=clu.filter(function(c){return c<pr;}).sort(function(a,b){return b-a;})[0]||pr*0.985;
-  var res=clu.filter(function(c){return c>pr;}).sort(function(a,b){return a-b;})[0]||pr*1.015;
-  var vP=(atr/pr)*100,s10=cl.slice(-10).reduce(function(a,b){return a+b;},0)/10,mom=((pr-s10)/s10)*100;
-  var s20=cl.slice(-20).reduce(function(a,b){return a+b;},0)/Math.min(20,cl.length),trend=pr>s20?"up":"down";
-  var g=0,ls=0,rp=Math.min(14,cl.length-1);for(var k=cl.length-rp;k<cl.length;k++){var d=cl[k]-cl[k-1];if(d>0)g+=d;else ls+=Math.abs(d);}
-  var rsi=ls===0?100:100-(100/(1+(g/rp)/(ls/rp)));
-  return{atr:atr,sup:sup,res:res,vP:vP,mom:mom,rsi:rsi,pr:pr,trend:trend};
+function storageGet(key) {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && window.storage?.get) {
+      window.storage.get(key).then((r) => resolve(r?.value || null)).catch(() => {
+        try { resolve(localStorage.getItem(key)); } catch { resolve(null); }
+      });
+    } else {
+      try { resolve(localStorage.getItem(key)); } catch { resolve(null); }
+    }
+  });
 }
 
-function mkT(coin,md,type,tc,desc,eL,eH,tL,tH,stop,conf,an,rk){
-  var tm=rk?rk.tm:1,sm=rk?rk.sm:1,ae=(eL+eH)/2;var rd=((tL+tH)/2)-ae,sd=ae-stop;
-  var aL=ae+rd*tm,aH=ae+(tH-ae+(tH-tL)/2)*tm,aS=ae-sd*sm;
-  conf=Math.max(10,Math.min(95,Math.round(conf)));var at=(aL+aH)/2,pp=((at-ae)/ae)*100,lp=Math.abs((aS-ae)/ae)*100,rr=lp>0?pp/lp:1;
-  var sc=(pp/6)*0.35+(conf/100)*0.35+Math.min(rr/3,1)*0.3;
-  return{symbol:coin.symbol,name:coin.name,type:type,typeColor:tc,desc:desc,entryLow:eL,entryHigh:eH,targetLow:aL,targetHigh:aH,stop:aS,rr:"1:"+rr.toFixed(1),confidence:conf,direction:"Long",profitPct:pp,score:sc,bid:md.bid,ask:md.ask,spread:md.spread,atrPct:an?an.vP:null,rsi:an?an.rsi:null,momentum:an?an.mom:null,supportLevel:an?an.sup:null,resistanceLevel:an?an.res:null,trend:an?an.trend:null,coinId:coin.id};
+function storageSet(key, value) {
+  if (typeof window !== "undefined" && window.storage?.set) {
+    try { window.storage.set(key, value); } catch {}
+  }
+  try { localStorage.setItem(key, value); } catch {}
 }
 
-function genTrades(coin,md,an,rk){
-  var ts=[],p=md.price,ch=md.change24h||0;
-  if(!an){var a=p*0.012;ts.push(mkT(coin,md,"Scalp","#06b6d4",coin.symbol+" scalp.",p-a*0.3,p,p+a*1.8,p+a*2.2,p-a*1.2,55,null,rk));return ts;}
-  var a2=an.atr,su=an.sup,re=an.res,vP=an.vP,mo=an.mom,rsi=an.rsi,tr=an.trend;
-  if(vP>0.3){var c=60;if(mo>0.5)c+=8;if(rsi<60)c+=5;if(md.spread!=null&&md.spread<0.05)c+=5;ts.push(mkT(coin,md,"Scalp","#06b6d4",coin.symbol+" scalp — vol "+vP.toFixed(1)+"%.",p-a2*0.4,p,p+a2*1.5,p+a2*2.0,p-a2*1.2,c,an,rk));}
-  if(tr==="up"||mo>0.3){var c2=55;if(tr==="up")c2+=10;if(rsi<65)c2+=5;if(ch>2)c2+=5;ts.push(mkT(coin,md,"Long","#22c55e",coin.symbol+" long — "+tr+" trend.",p-a2*0.5,p+a2*0.1,p+a2*3,p+a2*4,p-a2*1.8,c2,an,rk));}
-  if(((re-p)/p)*100<2&&mo>0){var c3=58;if(vP>0.5)c3+=6;ts.push(mkT(coin,md,"Breakout","#f59e0b",coin.symbol+" breakout near $"+fmt(re)+".",re*0.998,re*1.005,re+a2*2.5,re+a2*3.5,re-a2*1.2,c3,an,rk));}
-  if(rsi<40||ch<-2){var c4=52;if(rsi<30)c4+=10;if(((p-su)/p)*100<1.5)c4+=8;ts.push(mkT(coin,md,"Dip Buy","#8b5cf6",coin.symbol+" dip — RSI "+rsi.toFixed(0)+" near $"+fmt(su)+".",su*0.997,su*1.005,su+a2*2.5,su+a2*3.5,su-a2*1.5,c4,an,rk));}
-  if(mo>1&&vP>0.4){var c5=62;if(ch>3)c5+=8;if(tr==="up")c5+=6;ts.push(mkT(coin,md,"Momentum","#f97316",coin.symbol+" momentum +"+mo.toFixed(1)+"%.",p-a2*0.2,p+a2*0.1,p+a2*2,p+a2*3,p-a2*1.5,c5,an,rk));}
-  if(rsi<30&&tr==="down"&&ch<-3){var c6=45;if(rsi<25)c6+=8;ts.push(mkT(coin,md,"Reversal","#ec4899",coin.symbol+" reversal RSI "+rsi.toFixed(0)+".",p-a2*0.3,p+a2*0.1,p+a2*3,p+a2*4.5,p-a2*2,c6,an,rk));}
-  if(ts.length===0)ts.push(mkT(coin,md,"Scalp","#06b6d4",coin.symbol+" range scalp.",p-a2*0.5,p,p+a2*2,p+a2*2.8,p-a2*1.3,50,an,rk));
-  return ts;
+function storageDelete(key) {
+  if (typeof window !== "undefined" && window.storage?.delete) {
+    try { window.storage.delete(key); } catch {}
+  }
+  try { localStorage.removeItem(key); } catch {}
 }
 
-function useW(){var s=useState(typeof window!=="undefined"?window.innerWidth:1200);useEffect(function(){function h(){s[1](window.innerWidth);}window.addEventListener("resize",h);return function(){window.removeEventListener("resize",h);};},[]);return s[0];}
+/* ═══════════════════════════════════════════════════════════════
+   TECHNICAL ANALYSIS
+   ═══════════════════════════════════════════════════════════════ */
 
-export default function CryptoDashboard(){
-  var w=useW(),mob=w<640,S=useState;
-  var _tab=S("all"),tab=_tab[0],sTab=_tab[1];var _t=S(new Date()),time=_t[0],sTime=_t[1];
-  var _am=S([100,500,1000]),am=_am[0],sAm=_am[1];var _ea=S(false),ea=_ea[0],sEa=_ea[1];var _ta=S("100, 500, 1000"),ta=_ta[0],sTa=_ta[1];
-  var _m=S({}),merged=_m[0],sM=_m[1];var _gd=S(null),gd=_gd[0],sGd=_gd[1];var _fg=S(null),fg=_fg[0],sFg=_fg[1];
-  var _src=S({ws:"loading",cg:"loading",bn:"loading",cc:"loading",fg:"loading",oh:"loading"}),src=_src[0],sSrc=_src[1];
-  var _oh=S({}),oh=_oh[0],sOh=_oh[1];var _uf=S(false),uf=_uf[0],sUf=_uf[1];var _ss=S(false),ss=_ss[0],sSs=_ss[1];
-  var _ft=S(0),ft=_ft[0],sFt=_ft[1];var _sf2=S(false),sf2=_sf2[0],sSf=_sf2[1];
-  var _wc=S(false),wc=_wc[0],sWc=_wc[1];var _wt=S(0),wt=_wt[0],sWt=_wt[1];var _kl=S({}),kl=_kl[0],sKl=_kl[1];
-  var _bal=S(5000),bal=_bal[0],sBal=_bal[1];var _ot=S([]),ot=_ot[0],sOt=_ot[1];var _ct=S([]),ct=_ct[0],sCt=_ct[1];
-  var _eb=S(false),eb=_eb[0],sEb=_eb[1];var _tb=S("5000"),tb=_tb[0],sTb=_tb[1];var _sp=S(true),sp=_sp[0],sSp=_sp[1];
-  var _nf=S(null),nf=_nf[0],sNf=_nf[1];var _et=S(null),et=_et[0],sEt=_et[1];var _rl=S(1),rl=_rl[0],sRl=_rl[1];
-  var _pg=S("dashboard"),pg=_pg[0],sPg=_pg[1];var _lf=S("all"),lf=_lf[0],sLf=_lf[1];
-  var _ec=S(null),ec=_ec[0],sEc=_ec[1];var _sl=S(false),sl=_sl[0],sSl=_sl[1];
-  var _eti=S(null),eti=_eti[0],sEti=_eti[1];var _etp=S(""),etp=_etp[0],sEtp=_etp[1];var _esl=S(""),esl=_esl[0],sEsl=_esl[1];
-  var wR=useRef(null),klR=useRef({}),rcT=useRef(null);var fees=FTIERS[ft];
+function analyzeOHLC(candles) {
+  if (!candles || candles.length < 10) return null;
 
-  useEffect(function(){async function ld(){try{var r=await sGet("pts");if(r){var s=JSON.parse(r);if(s.bal!=null)sBal(s.bal);if(s.ot)sOt(s.ot);if(s.ct)sCt(s.ct);if(s.ft!=null)sFt(s.ft);if(s.rl!=null)sRl(s.rl);if(s.am)sAm(s.am);}}catch(e){}sSl(true);}ld();},[]);
-  useEffect(function(){if(!sl)return;sSet("pts",JSON.stringify({bal:bal,ot:ot.map(function(t){return Object.assign({},t,{priceHistory:(t.priceHistory||[]).slice(-50)});}),ct:ct.slice(-100).map(function(t){return Object.assign({},t,{chartSnapshot:(t.chartSnapshot||[]).slice(-60)});}),ft:ft,rl:rl,am:am}));},[bal,ot,ct,ft,rl,am,sl]);
-  useEffect(function(){if(!ot.length)return;sOt(function(p){return p.map(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:null;if(!cp)return t;var h=t.priceHistory||[];if(!h.length||Date.now()-h[h.length-1].t>5000)return Object.assign({},t,{priceHistory:h.concat([{p:cp,t:Date.now()}]).slice(-200)});return t;});});},[wt,merged]);
-  useEffect(function(){if(!ot.length)return;ot.forEach(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:null;if(!cp)return;if(cp>=t.targetPrice)clT(t.id,"Target ✅");else if(cp<=t.stopPrice)clT(t.id,"Stop ❌");});},[merged,wt]);
+  const recent = candles.slice(-14);
+  let atrSum = 0;
+  for (let i = 1; i < recent.length; i++) {
+    const high = recent[i][2], low = recent[i][3], prevClose = recent[i - 1][4];
+    atrSum += Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+  }
+  const atr = atrSum / (recent.length - 1);
 
-  function enT(trade,a){var ep=(trade.entryLow+trade.entryHigh)/2,tp=(trade.targetLow+trade.targetHigh)/2;var fee=a*(fees.tk/100),cost=a+fee;if(cost>bal){sNf({m:"Not enough!",c:"#ef4444"});setTimeout(function(){sNf(null);},2500);return;}var id=Date.now(),now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();sBal(function(b){return b-cost;});sOt(function(p){return p.concat([{id:id,symbol:trade.symbol,coinId:trade.coinId,type:trade.type,entryPrice:ep,targetPrice:tp,stopPrice:trade.stop,coins:a/ep,investAmt:a,entryFee:fee,enteredAt:ts,enteredMs:now.getTime(),priceHistory:[{p:ep,t:Date.now()}],riskLabel:RISK[rl].label,rr:trade.rr}]);});sNf({m:"Opened "+trade.symbol+" $"+a,c:"#22c55e"});setTimeout(function(){sNf(null);},2500);sEt(id);sSp(true);}
-  function clT(id,reason){sOt(function(p){var t=p.find(function(x){return x.id===id;});if(!t)return p;var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice,gv=t.coins*cp,xf2=gv*(fees.mk/100),net=gv-xf2,pnl=net-t.investAmt-t.entryFee,pp=(pnl/t.investAmt)*100;var now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();var dMs=t.enteredMs?now.getTime()-t.enteredMs:0,ds=dMs<60000?Math.round(dMs/1000)+"s":dMs<3600000?Math.floor(dMs/60000)+"m":Math.floor(dMs/3600000)+"h "+Math.floor((dMs%3600000)/60000)+"m";sBal(function(b){return b+net;});sCt(function(c2){return c2.concat([Object.assign({},t,{exitPrice:cp,exitFee:xf2,pnl:pnl,pnlPct:pp,reason:reason||"Manual",closedAt:ts,duration:ds,chartSnapshot:(t.priceHistory||[]).slice(-100)})]);});sNf({m:t.symbol+" "+(reason||"Manual")+" "+(pnl>=0?"+":"")+"$"+fmt(pnl),c:pnl>=0?"#22c55e":"#ef4444"});setTimeout(function(){sNf(null);},2500);if(et===id)sEt(null);return p.filter(function(x){return x.id!==id;});});}
-  function modT(id){sOt(function(p){return p.map(function(t){if(t.id!==id)return t;var u=Object.assign({},t);var tp2=parseFloat(etp),sl2=parseFloat(esl);if(!isNaN(tp2)&&tp2>t.entryPrice)u.targetPrice=tp2;if(!isNaN(sl2)&&sl2<t.entryPrice)u.stopPrice=sl2;return u;});});sEti(null);sNf({m:"TP/SL updated",c:"#8b5cf6"});setTimeout(function(){sNf(null);},2000);}
+  const closes = candles.map((c) => parseFloat(c[4]));
+  const highs = candles.map((c) => parseFloat(c[2]));
+  const lows = candles.map((c) => parseFloat(c[3]));
 
-  var oPnl=ot.reduce(function(s,t){var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice;return s+(t.coins*cp*(1-fees.mk/100)-t.investAmt-t.entryFee);},0);
-  var cPnl=ct.reduce(function(s,t){return s+t.pnl;},0);var wins=ct.filter(function(t){return t.pnl>0;}).length;
-  var tEq=bal+ot.reduce(function(s,t){return s+t.investAmt+t.entryFee;},0)+oPnl;
+  const allLevels = [...highs.slice(-20), ...lows.slice(-20)].sort((a, b) => a - b);
+  const currentPrice = closes[closes.length - 1];
+  const threshold = currentPrice * 0.003;
 
-  var cWs=useCallback(function(){try{if(wR.current&&wR.current.readyState<2)return;var ws=new WebSocket("wss://ws.kraken.com");wR.current=ws;ws.onopen=function(){sWc(true);sSrc(function(p){return Object.assign({},p,{ws:"live"});});ws.send(JSON.stringify({event:"subscribe",pair:COINS.map(function(c){return c.krakenWs;}),subscription:{name:"ticker"}}));};ws.onmessage=function(e){try{var d=JSON.parse(e.data);if(Array.isArray(d)&&d.length>=4){var tk=d[1],pn=d[3],co=COINS.find(function(c){return c.krakenWs===pn;});if(co&&tk&&tk.c){var l=parseFloat(tk.c[0]),o=parseFloat(tk.o[0]);klR.current=Object.assign({},klR.current);klR.current[co.id]={price:l,bid:parseFloat(tk.b[0]),ask:parseFloat(tk.a[0]),high:parseFloat(tk.h[1]),low:parseFloat(tk.l[1]),vol:parseFloat(tk.v[1])*l,change:((l-o)/o)*100,spread:((parseFloat(tk.a[0])-parseFloat(tk.b[0]))/l)*100,ts:Date.now()};sKl(Object.assign({},klR.current));sWt(function(p){return p+1;});}}}catch(er){}};ws.onclose=function(){sWc(false);sSrc(function(p){return Object.assign({},p,{ws:"error"});});rcT.current=setTimeout(cWs,5000);};ws.onerror=function(){sSrc(function(p){return Object.assign({},p,{ws:"error"});});};}catch(er){};},[]);
-  useEffect(function(){cWs();return function(){if(wR.current)wR.current.close();if(rcT.current)clearTimeout(rcT.current);};},[cWs]);
+  // Cluster support/resistance levels
+  const clusters = [];
+  let currentCluster = [allLevels[0]];
+  for (let i = 1; i < allLevels.length; i++) {
+    if (allLevels[i] - allLevels[i - 1] < threshold) {
+      currentCluster.push(allLevels[i]);
+    } else {
+      if (currentCluster.length >= 2) {
+        clusters.push(currentCluster.reduce((a, b) => a + b, 0) / currentCluster.length);
+      }
+      currentCluster = [allLevels[i]];
+    }
+  }
+  if (currentCluster.length >= 2) {
+    clusters.push(currentCluster.reduce((a, b) => a + b, 0) / currentCluster.length);
+  }
 
-  var fOhlc=useCallback(function(){(async function(){var r={},ok=0;for(var i=0;i<COINS.length;i++){try{var d=await sf("https://api.kraken.com/0/public/OHLC?pair="+COINS[i].krakenOhlc+"&interval=15");if(d.result){var k=Object.keys(d.result).find(function(x){return x!=="last";});if(k){r[COINS[i].id]=d.result[k].slice(-100).map(function(c){return[c[0],parseFloat(c[1]),parseFloat(c[2]),parseFloat(c[3]),parseFloat(c[4]),parseFloat(c[5]),parseFloat(c[6])];});ok++;}}await new Promise(function(r2){setTimeout(r2,300);});}catch(e){}}sOh(r);sSrc(function(p){return Object.assign({},p,{oh:ok>0?"live":"error"});});})().catch(function(){sSrc(function(p){return Object.assign({},p,{oh:"error"});});});},[]);
+  const support = clusters.filter((c) => c < currentPrice).sort((a, b) => b - a)[0] || currentPrice * 0.985;
+  const resistance = clusters.filter((c) => c > currentPrice).sort((a, b) => a - b)[0] || currentPrice * 1.015;
 
-  function applyFallback(){var m2={};COINS.forEach(function(c){var f=FB[c.id];if(f)m2[c.id]={price:f.p,change24h:f.c,sparkline:genSpark(f.p,f.c),sourceCount:0,sourceNames:["FB"],bid:null,ask:null,spread:null};});sM(m2);sUf(true);}
+  const volatilityPct = (atr / currentPrice) * 100;
+  const sma10 = closes.slice(-10).reduce((a, b) => a + b, 0) / 10;
+  const momentum = ((currentPrice - sma10) / sma10) * 100;
+  const sma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, closes.length);
+  const trend = currentPrice > sma20 ? "up" : "down";
 
-  var fAll=useCallback(function(){(async function(){var pd={};COINS.forEach(function(c){pd[c.id]={prices:[],ch:[],vol:[],spark:null,sn:[]};});var any=false;
-  COINS.forEach(function(c){var k=klR.current[c.id];if(k&&Date.now()-k.ts<120000){pd[c.id].prices.push(k.price);pd[c.id].ch.push(k.change);pd[c.id].sn.push("WS");any=true;}});
-  try{var d=await sf("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids="+COINS.map(function(c){return c.id;}).join(",")+"&order=market_cap_desc&sparkline=true&price_change_percentage=24h");d.forEach(function(c){if(pd[c.id]){pd[c.id].prices.push(c.current_price);if(c.price_change_percentage_24h!=null)pd[c.id].ch.push(c.price_change_percentage_24h);if(c.total_volume)pd[c.id].vol.push(c.total_volume);if(c.sparkline_in_7d&&c.sparkline_in_7d.price)pd[c.id].spark=c.sparkline_in_7d.price.slice(-48);pd[c.id].sn.push("CG");}});sSrc(function(p){return Object.assign({},p,{cg:"live"});});any=true;}catch(e){sSrc(function(p){return Object.assign({},p,{cg:"error"});});}
-  try{var d2=await sf("https://api.binance.com/api/v3/ticker/24hr?symbols="+JSON.stringify(COINS.map(function(c){return c.binance;}).filter(Boolean)));d2.forEach(function(t){var co=COINS.find(function(c){return c.binance===t.symbol;});if(co&&pd[co.id]){pd[co.id].prices.push(parseFloat(t.lastPrice));pd[co.id].ch.push(parseFloat(t.priceChangePercent));pd[co.id].sn.push("BN");}});sSrc(function(p){return Object.assign({},p,{bn:"live"});});any=true;}catch(e){sSrc(function(p){return Object.assign({},p,{bn:"error"});});}
-  try{var d3=await sf("https://min-api.cryptocompare.com/data/pricemultifull?fsyms="+COINS.map(function(c){return c.cc;}).join(",")+"&tsyms=USD");if(d3.RAW)COINS.forEach(function(c){var r2=d3.RAW[c.cc]?d3.RAW[c.cc].USD:null;if(r2&&pd[c.id]){pd[c.id].prices.push(r2.PRICE);if(r2.CHANGEPCT24HOUR!=null)pd[c.id].ch.push(r2.CHANGEPCT24HOUR);pd[c.id].sn.push("CC");}});sSrc(function(p){return Object.assign({},p,{cc:"live"});});any=true;}catch(e){sSrc(function(p){return Object.assign({},p,{cc:"error"});});}
-  try{var d4=await sf("https://api.alternative.me/fng/?limit=1");if(d4.data&&d4.data[0])sFg({value:parseInt(d4.data[0].value),label:d4.data[0].value_classification});sSrc(function(p){return Object.assign({},p,{fg:"live"});});}catch(e){sSrc(function(p){return Object.assign({},p,{fg:"error"});});}
-  try{var d5=await sf("https://api.coingecko.com/api/v3/global");if(d5.data)sGd(d5.data);}catch(e){}
-  if(!any){applyFallback();return;}
-  sUf(false);function avg(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:null;}
-  var m3={};COINS.forEach(function(c){var p2=pd[c.id],ap=avg(p2.prices),k=klR.current[c.id];if(!ap)return;m3[c.id]={price:ap,change24h:avg(p2.ch),volume:avg(p2.vol),sparkline:p2.spark||genSpark(ap,avg(p2.ch)||0),sourceCount:p2.prices.length,sourceNames:Array.from(new Set(p2.sn)),bid:k?k.bid:null,ask:k?k.ask:null,spread:k?k.spread:null};});sM(m3);})().catch(function(){applyFallback();});},[]);
+  // RSI
+  let gains = 0, losses = 0;
+  const period = Math.min(14, closes.length - 1);
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const delta = closes[i] - closes[i - 1];
+    if (delta > 0) gains += delta;
+    else losses += Math.abs(delta);
+  }
+  const rsi = losses === 0 ? 100 : 100 - 100 / (1 + gains / period / (losses / period));
 
-  useEffect(function(){fAll();fOhlc();var i1=setInterval(fAll,60000),i2=setInterval(fOhlc,300000);return function(){clearInterval(i1);clearInterval(i2);};},[]);
-  useEffect(function(){var t=setInterval(function(){sTime(new Date());},1000);return function(){clearInterval(t);};},[]);
-  useEffect(function(){if(!Object.keys(kl).length)return;sM(function(p){var n=Object.assign({},p);COINS.forEach(function(c){var k=kl[c.id];if(k&&n[c.id]){n[c.id]=Object.assign({},n[c.id],{bid:k.bid,ask:k.ask,spread:k.spread});if(k.ts>(n[c.id]._t||0)){n[c.id].price=n[c.id].price?(n[c.id].price*0.4+k.price*0.6):k.price;n[c.id].change24h=k.change;n[c.id]._t=k.ts;}}});return n;});},[wt]);
+  return { atr, support, resistance, volatilityPct, momentum, rsi, currentPrice, trend };
+}
 
-  var lc=Object.values(src).filter(function(s){return s==="live";}).length;
-  var hp=Object.values(merged).some(function(mm){return mm.price!=null;});
-  var allT=COINS.flatMap(function(c){var d=merged[c.id];if(!d||!d.price)return[];return genTrades(c,d,analyzeOhlc(oh[c.id]||null),RISK[rl]);}).sort(function(a,b){return b.score-a.score;});
-  var tTypes=["all"].concat(Array.from(new Set(allT.map(function(t){return t.type.toLowerCase();}))));
-  var fT=tab==="all"?allT:allT.filter(function(t){return t.type.toLowerCase()===tab;});
-  function svAm(){var p=ta.split(",").map(function(s){return parseFloat(s.trim());}).filter(function(n){return!isNaN(n)&&n>0;});if(p.length>0){sAm(p);sEa(false);}}
-  var fgD=fg||{value:62,label:"Greed"};var fgC=fgD.value>55?"#22c55e":fgD.value>45?"#f59e0b":"#ef4444";
+/* ═══════════════════════════════════════════════════════════════
+   TRADE SIGNAL GENERATION
+   ═══════════════════════════════════════════════════════════════ */
 
-  /* ========== RENDER ========== */
-  return(
-    <div style={{background:"#0a0e17",minHeight:"100vh",color:"#e2e8f0",fontFamily:"'Inter',-apple-system,sans-serif",padding:mob?"12px":"20px 24px",WebkitTextSizeAdjust:"100%"}}>
-      {nf&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:999,background:nf.c,color:"#fff",padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.5)",maxWidth:"90vw",textAlign:"center"}}>{nf.m}</div>}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:mob?"flex-start":"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
-        <div><h1 style={{fontSize:mob?20:24,fontWeight:700,margin:0,color:"#f8fafc"}}><span style={{color:"#8b5cf6"}}>Crypto</span> Day Trader</h1><p style={{margin:"4px 0 0",fontSize:11,color:"#64748b"}}>{time.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})} · {time.toLocaleTimeString()}</p></div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>{wc&&<div style={{display:"flex",alignItems:"center",gap:4,background:"#22c55e15",border:"1px solid #22c55e30",borderRadius:8,padding:"4px 8px"}}><div style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse 2s infinite"}}/><span style={{fontSize:10,color:"#22c55e",fontWeight:600}}>LIVE</span></div>}<button onClick={function(){fAll();fOhlc();}} style={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#94a3b8",cursor:"pointer"}}>🔄</button></div>
+function createTrade(coin, marketData, type, desc, entryLow, entryHigh, targetLow, targetHigh, stopLoss, confidence, analysis, riskProfile) {
+  const tm = riskProfile?.targetMul || 1;
+  const sm = riskProfile?.stopMul || 1;
+  const avgEntry = (entryLow + entryHigh) / 2;
+  const rawTarget = ((targetLow + targetHigh) / 2) - avgEntry;
+  const rawStop = avgEntry - stopLoss;
+
+  const adjTargetLow = avgEntry + rawTarget * tm;
+  const adjTargetHigh = avgEntry + (targetHigh - avgEntry + (targetHigh - targetLow) / 2) * tm;
+  const adjStop = avgEntry - rawStop * sm;
+
+  confidence = Math.max(10, Math.min(95, Math.round(confidence)));
+
+  const avgTarget = (adjTargetLow + adjTargetHigh) / 2;
+  const profitPct = ((avgTarget - avgEntry) / avgEntry) * 100;
+  const lossPct = Math.abs((adjStop - avgEntry) / avgEntry) * 100;
+  const rewardRisk = lossPct > 0 ? profitPct / lossPct : 1;
+  const score = (profitPct / 6) * 0.35 + (confidence / 100) * 0.35 + Math.min(rewardRisk / 3, 1) * 0.3;
+
+  return {
+    symbol: coin.symbol, name: coin.name, coinId: coin.id, coinColor: coin.color,
+    type, typeColor: TRADE_TYPE_COLORS[type] || "#78909c",
+    desc, entryLow, entryHigh, targetLow: adjTargetLow, targetHigh: adjTargetHigh,
+    stop: adjStop, rr: "1:" + rewardRisk.toFixed(1), confidence, direction: "Long",
+    profitPct, score, bid: marketData.bid, ask: marketData.ask, spread: marketData.spread,
+    atrPct: analysis?.volatilityPct || null, rsi: analysis?.rsi || null,
+    momentum: analysis?.momentum || null, supportLevel: analysis?.support || null,
+    resistanceLevel: analysis?.resistance || null, trend: analysis?.trend || null,
+  };
+}
+
+function generateTradeSignals(coin, marketData, analysis, riskProfile) {
+  const signals = [];
+  const price = marketData.price;
+  const change = marketData.change24h || 0;
+
+  if (!analysis) {
+    const a = price * 0.012;
+    signals.push(createTrade(coin, marketData, "Scalp", `${coin.symbol} range scalp`, price - a * 0.3, price, price + a * 1.8, price + a * 2.2, price - a * 1.2, 55, null, riskProfile));
+    return signals;
+  }
+
+  const { atr, support, resistance, volatilityPct, momentum, rsi, trend } = analysis;
+
+  if (volatilityPct > 0.3) {
+    let conf = 60;
+    if (momentum > 0.5) conf += 8;
+    if (rsi < 60) conf += 5;
+    if (marketData.spread != null && marketData.spread < 0.05) conf += 5;
+    signals.push(createTrade(coin, marketData, "Scalp", `${coin.symbol} scalp — vol ${volatilityPct.toFixed(1)}%`, price - atr * 0.4, price, price + atr * 1.5, price + atr * 2.0, price - atr * 1.2, conf, analysis, riskProfile));
+  }
+
+  if (trend === "up" || momentum > 0.3) {
+    let conf = 55;
+    if (trend === "up") conf += 10;
+    if (rsi < 65) conf += 5;
+    if (change > 2) conf += 5;
+    signals.push(createTrade(coin, marketData, "Long", `${coin.symbol} long — ${trend} trend`, price - atr * 0.5, price + atr * 0.1, price + atr * 3, price + atr * 4, price - atr * 1.8, conf, analysis, riskProfile));
+  }
+
+  if (((resistance - price) / price) * 100 < 2 && momentum > 0) {
+    let conf = 58;
+    if (volatilityPct > 0.5) conf += 6;
+    signals.push(createTrade(coin, marketData, "Breakout", `${coin.symbol} breakout near $${formatPrice(resistance)}`, resistance * 0.998, resistance * 1.005, resistance + atr * 2.5, resistance + atr * 3.5, resistance - atr * 1.2, conf, analysis, riskProfile));
+  }
+
+  if (rsi < 40 || change < -2) {
+    let conf = 52;
+    if (rsi < 30) conf += 10;
+    if (((price - support) / price) * 100 < 1.5) conf += 8;
+    signals.push(createTrade(coin, marketData, "Dip Buy", `${coin.symbol} dip — RSI ${rsi.toFixed(0)} near $${formatPrice(support)}`, support * 0.997, support * 1.005, support + atr * 2.5, support + atr * 3.5, support - atr * 1.5, conf, analysis, riskProfile));
+  }
+
+  if (momentum > 1 && volatilityPct > 0.4) {
+    let conf = 62;
+    if (change > 3) conf += 8;
+    if (trend === "up") conf += 6;
+    signals.push(createTrade(coin, marketData, "Momentum", `${coin.symbol} momentum +${momentum.toFixed(1)}%`, price - atr * 0.2, price + atr * 0.1, price + atr * 2, price + atr * 3, price - atr * 1.5, conf, analysis, riskProfile));
+  }
+
+  if (rsi < 30 && trend === "down" && change < -3) {
+    let conf = 45;
+    if (rsi < 25) conf += 8;
+    signals.push(createTrade(coin, marketData, "Reversal", `${coin.symbol} reversal RSI ${rsi.toFixed(0)}`, price - atr * 0.3, price + atr * 0.1, price + atr * 3, price + atr * 4.5, price - atr * 2, conf, analysis, riskProfile));
+  }
+
+  if (signals.length === 0) {
+    signals.push(createTrade(coin, marketData, "Scalp", `${coin.symbol} range scalp`, price - atr * 0.5, price, price + atr * 2, price + atr * 2.8, price - atr * 1.3, 50, analysis, riskProfile));
+  }
+
+  return signals;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SUB-COMPONENTS
+   ═══════════════════════════════════════════════════════════════ */
+
+function Sparkline({ data, color, width = 100, height = 32 }) {
+  if (!data || data.length < 2) return null;
+  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * height}`).join(" ");
+  const gradientId = `sg${Math.random().toString(36).slice(2, 7)}`;
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,${height} ${points} ${width},${height}`} fill={`url(#${gradientId})`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ConfidenceBar({ value }) {
+  const color = value >= 70 ? "#26a69a" : value >= 50 ? "#d4a017" : "#ef5350";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, height: 4, borderRadius: 2, background: "#1c2030" }}>
+        <div style={{ width: `${value}%`, height: "100%", borderRadius: 2, background: color, transition: "width 0.5s ease" }} />
+      </div>
+      <span style={{ fontSize: 11, color: "#8a8f9c", fontFamily: "'JetBrains Mono', monospace", minWidth: 28 }}>{value}%</span>
+    </div>
+  );
+}
+
+function StatusDot({ status, label }) {
+  const color = status === "live" ? "#26a69a" : status === "error" ? "#ef5350" : "#d4a017";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{
+        width: 6, height: 6, borderRadius: "50%", background: color,
+        boxShadow: status === "live" ? `0 0 6px ${color}` : "none",
+        animation: status === "live" ? "pulse 2s infinite" : "none",
+      }} />
+      <span style={{ fontSize: 10, color: "#6b7280", fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
+    </div>
+  );
+}
+
+function LiveTradeChart({ trade, currentPrice, isMobile }) {
+  const hist = trade.priceHistory || [];
+  if (hist.length < 2) return (
+    <div style={{ background: "#141620", borderRadius: 6, padding: 12, marginTop: 8, textAlign: "center", color: "#6b7280", fontSize: 11 }}>
+      Collecting price data... ({hist.length} ticks)
+    </div>
+  );
+
+  const W = isMobile ? 320 : 500, H = isMobile ? 120 : 110;
+  const pL = 30, pR = 52, pT = 8, pB = 14;
+  const cW = W - pL - pR, cH = H - pT - pB;
+
+  const allPrices = [...hist.map((h) => h.p), trade.targetPrice, trade.stopPrice, trade.entryPrice];
+  if (currentPrice) allPrices.push(currentPrice);
+  let max = Math.max(...allPrices), min = Math.min(...allPrices);
+  const range = max - min || 1;
+  max += range * 0.05; min -= range * 0.05;
+  const totalRange = max - min;
+
+  const yPos = (p) => pT + cH * (1 - (p - min) / totalRange);
+  const xPos = (i) => pL + (i / Math.max(hist.length - 1, 1)) * cW;
+
+  const points = hist.map((h, i) => `${xPos(i)},${yPos(h.p)}`).join(" ");
+  const entryY = yPos(trade.entryPrice), targetY = yPos(trade.targetPrice), stopY = yPos(trade.stopPrice);
+  const lastX = xPos(hist.length - 1);
+  const lastY = currentPrice ? yPos(currentPrice) : yPos(hist[hist.length - 1].p);
+  const pnl = currentPrice ? currentPrice - trade.entryPrice : 0;
+  const pnlPct = (pnl / trade.entryPrice * 100).toFixed(2);
+  const color = pnl >= 0 ? "#26a69a" : "#ef5350";
+
+  const fillPoints = `${pL},${entryY} ${hist.map((h, i) => `${xPos(i)},${yPos(h.p)}`).join(" ")} ${lastX},${entryY}`;
+
+  const startTime = new Date(hist[0].t);
+  const endTime = new Date(hist[hist.length - 1].t);
+  const elapsed = Math.round((endTime - startTime) / 1000);
+  const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+
+  return (
+    <div style={{ background: "#141620", borderRadius: 6, padding: isMobile ? 8 : 10, marginTop: 8, maxWidth: isMobile ? "100%" : 520 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#e0e2e8", fontFamily: "'JetBrains Mono', monospace" }}>{trade.symbol}/USD</span>
+          <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>{pnl >= 0 ? "+" : ""}{pnlPct}%</span>
+        </div>
+        <span style={{ fontSize: 10, color: "#6b7280", fontFamily: "'JetBrains Mono', monospace" }}>{elapsedStr} · {hist.length} ticks</span>
+      </div>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", width: "100%", height: "auto" }}>
+        <rect x={pL} y={targetY} width={cW} height={Math.max(0, entryY - targetY)} fill="#26a69a" fillOpacity="0.04" />
+        <rect x={pL} y={entryY} width={cW} height={Math.max(0, stopY - entryY)} fill="#ef5350" fillOpacity="0.04" />
+        <line x1={pL} y1={targetY} x2={pL + cW} y2={targetY} stroke="#26a69a" strokeWidth="0.7" strokeDasharray="4,3" />
+        <line x1={pL} y1={entryY} x2={pL + cW} y2={entryY} stroke="#7c4dff" strokeWidth="0.7" strokeDasharray="4,3" />
+        <line x1={pL} y1={stopY} x2={pL + cW} y2={stopY} stroke="#ef5350" strokeWidth="0.7" strokeDasharray="4,3" />
+        <polygon points={fillPoints} fill={color} fillOpacity="0.06" />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        <circle cx={pL} cy={entryY} r="3.5" fill="#7c4dff" stroke="#141620" strokeWidth="1.5" />
+        <circle cx={lastX} cy={lastY} r="4.5" fill={color} stroke="#141620" strokeWidth="1.5" />
+        <text x={3} y={targetY + 3} fill="#26a69a" fontSize="7" fontFamily="'JetBrains Mono', monospace">TP</text>
+        <text x={3} y={entryY + 3} fill="#7c4dff" fontSize="7" fontFamily="'JetBrains Mono', monospace">IN</text>
+        <text x={3} y={stopY + 3} fill="#ef5350" fontSize="7" fontFamily="'JetBrains Mono', monospace">SL</text>
+        <text x={pL + cW + 3} y={entryY + 3} fill="#7c4dff" fontSize="7" fontFamily="'JetBrains Mono', monospace">${formatPrice(trade.entryPrice)}</text>
+        <text x={pL + cW + 3} y={targetY + 3} fill="#26a69a" fontSize="7" fontFamily="'JetBrains Mono', monospace">${formatPrice(trade.targetPrice)}</text>
+        <text x={pL + cW + 3} y={stopY + 3} fill="#ef5350" fontSize="7" fontFamily="'JetBrains Mono', monospace">${formatPrice(trade.stopPrice)}</text>
+        {currentPrice && <text x={pL + cW + 3} y={lastY + 3} fill={color} fontSize="8" fontWeight="700" fontFamily="'JetBrains Mono', monospace">${formatPrice(currentPrice)}</text>}
+      </svg>
+    </div>
+  );
+}
+
+function ClosedTradeChart({ trade, isMobile }) {
+  const hist = trade.chartSnapshot || [];
+  if (hist.length < 3) return <div style={{ fontSize: 10, color: "#4a5068", padding: 6 }}>No chart data</div>;
+
+  const W = isMobile ? 310 : 460, H = isMobile ? 90 : 80;
+  const pL = 26, pR = 48, pT = 6, pB = 8;
+  const cW = W - pL - pR, cH = H - pT - pB;
+
+  const allPrices = [...hist.map((h) => h.p), trade.targetPrice, trade.stopPrice, trade.entryPrice, trade.exitPrice];
+  let max = Math.max(...allPrices), min = Math.min(...allPrices);
+  const range = max - min || 1;
+  max += range * 0.05; min -= range * 0.05;
+  const totalRange = max - min;
+
+  const yPos = (p) => pT + cH * (1 - (p - min) / totalRange);
+  const xPos = (i) => pL + (i / Math.max(hist.length - 1, 1)) * cW;
+
+  const points = hist.map((h, i) => `${xPos(i)},${yPos(h.p)}`).join(" ");
+  const isWin = trade.pnl >= 0;
+  const color = isWin ? "#26a69a" : "#ef5350";
+
+  return (
+    <div style={{ background: "#141620", borderRadius: 6, padding: 4, marginTop: 6, maxWidth: isMobile ? "100%" : 480 }}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", width: "100%", height: "auto" }}>
+        <line x1={pL} y1={yPos(trade.targetPrice)} x2={pL + cW} y2={yPos(trade.targetPrice)} stroke="#26a69a" strokeWidth="0.6" strokeDasharray="4,3" />
+        <line x1={pL} y1={yPos(trade.entryPrice)} x2={pL + cW} y2={yPos(trade.entryPrice)} stroke="#7c4dff" strokeWidth="0.6" strokeDasharray="4,3" />
+        <line x1={pL} y1={yPos(trade.stopPrice)} x2={pL + cW} y2={yPos(trade.stopPrice)} stroke="#ef5350" strokeWidth="0.6" strokeDasharray="4,3" />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+        <circle cx={pL} cy={yPos(trade.entryPrice)} r="3" fill="#7c4dff" />
+        <circle cx={xPos(hist.length - 1)} cy={yPos(trade.exitPrice)} r="3.5" fill={color} stroke="#141620" strokeWidth="1" />
+        <text x={1} y={yPos(trade.targetPrice) + 3} fill="#26a69a" fontSize="6" fontFamily="'JetBrains Mono', monospace">TP</text>
+        <text x={1} y={yPos(trade.entryPrice) + 3} fill="#7c4dff" fontSize="6" fontFamily="'JetBrains Mono', monospace">IN</text>
+        <text x={1} y={yPos(trade.stopPrice) + 3} fill="#ef5350" fontSize="6" fontFamily="'JetBrains Mono', monospace">SL</text>
+        <text x={pL + cW + 3} y={yPos(trade.exitPrice) + 3} fill={color} fontSize="7" fontWeight="700" fontFamily="'JetBrains Mono', monospace">${formatPrice(trade.exitPrice)}</text>
+      </svg>
+    </div>
+  );
+}
+
+function EquityCurve({ closedTrades, startingBalance = 5000, isMobile }) {
+  if (closedTrades.length < 2) return null;
+
+  const W = isMobile ? 320 : 500, H = isMobile ? 100 : 110;
+  const pL = 44, pR = 10, pT = 8, pB = 14;
+  const cW = W - pL - pR, cH = H - pT - pB;
+
+  const equity = [startingBalance];
+  closedTrades.forEach((t) => equity.push(equity[equity.length - 1] + t.pnl));
+
+  let max = Math.max(...equity), min = Math.min(...equity);
+  const range = max - min || 1;
+  max += range * 0.05; min -= range * 0.05;
+  const totalRange = max - min;
+
+  const yPos = (v) => pT + cH * (1 - (v - min) / totalRange);
+  const points = equity.map((v, i) => `${pL + (i / Math.max(equity.length - 1, 1)) * cW},${yPos(v)}`).join(" ");
+  const fillPoints = `${pL},${yPos(startingBalance)} ${points} ${pL + cW},${yPos(startingBalance)}`;
+  const finalEquity = equity[equity.length - 1];
+  const totalPnl = finalEquity - startingBalance;
+  const color = totalPnl >= 0 ? "#26a69a" : "#ef5350";
+
+  return (
+    <div style={{ background: "#181a24", border: "1px solid #1f2233", borderRadius: 8, padding: isMobile ? 10 : 14, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#e0e2e8" }}>Equity Curve</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: "'JetBrains Mono', monospace" }}>
+          {totalPnl >= 0 ? "+" : ""}${formatPrice(totalPnl)} ({((totalPnl / startingBalance) * 100).toFixed(1)}%)
+        </span>
+      </div>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", width: "100%", height: "auto" }}>
+        <line x1={pL} y1={yPos(startingBalance)} x2={pL + cW} y2={yPos(startingBalance)} stroke="#4a5068" strokeWidth="0.4" strokeDasharray="3,3" />
+        <polygon points={fillPoints} fill={color} fillOpacity="0.08" />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" />
+        <circle cx={pL} cy={yPos(startingBalance)} r="3" fill="#4a5068" />
+        <circle cx={pL + cW} cy={yPos(finalEquity)} r="4" fill={color} stroke="#181a24" strokeWidth="1.5" />
+        <text x={pL - 3} y={yPos(startingBalance) + 3} fill="#6b7280" fontSize="7" textAnchor="end" fontFamily="'JetBrains Mono', monospace">${startingBalance}</text>
+        <text x={pL + cW + 3} y={yPos(finalEquity) + 3} fill={color} fontSize="7" fontFamily="'JetBrains Mono', monospace">${finalEquity.toFixed(0)}</text>
+      </svg>
+    </div>
+  );
+}
+
+/* Mini OHLC Chart for selected coin */
+function OHLCChart({ candles, coin, currentPrice, isMobile }) {
+  if (!candles || candles.length < 5) return (
+    <div style={{ background: "#141620", borderRadius: 8, padding: 20, textAlign: "center", color: "#4a5068", fontSize: 12, border: "1px solid #1f2233" }}>
+      Loading chart data...
+    </div>
+  );
+
+  const W = isMobile ? 340 : 560, H = isMobile ? 180 : 220;
+  const pL = 50, pR = 12, pT = 12, pB = 20;
+  const cW = W - pL - pR, cH = H - pT - pB;
+
+  const displayCandles = candles.slice(-50);
+  const allH = displayCandles.map(c => c[2]);
+  const allL = displayCandles.map(c => c[3]);
+  let max = Math.max(...allH), min = Math.min(...allL);
+  const range = max - min || 1;
+  max += range * 0.05; min -= range * 0.05;
+  const totalRange = max - min;
+
+  const yPos = (p) => pT + cH * (1 - (p - min) / totalRange);
+  const candleWidth = Math.max(2, (cW / displayCandles.length) * 0.65);
+  const gap = cW / displayCandles.length;
+
+  const gridLines = [];
+  const steps = 5;
+  for (let i = 0; i <= steps; i++) {
+    const price = min + (totalRange * i) / steps;
+    gridLines.push(price);
+  }
+
+  return (
+    <div style={{ background: "#141620", borderRadius: 8, padding: isMobile ? 8 : 12, border: "1px solid #1f2233" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, padding: "0 4px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: coin.color }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#e0e2e8" }}>{coin.symbol}/USD</span>
+          <span style={{ fontSize: 11, color: "#6b7280" }}>15m</span>
+        </div>
+        {currentPrice && (
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#e0e2e8", fontFamily: "'JetBrains Mono', monospace" }}>
+            ${formatPrice(currentPrice)}
+          </span>
+        )}
+      </div>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", width: "100%", height: "auto" }}>
+        {gridLines.map((price, i) => (
+          <g key={i}>
+            <line x1={pL} y1={yPos(price)} x2={pL + cW} y2={yPos(price)} stroke="#1f2233" strokeWidth="0.5" />
+            <text x={pL - 4} y={yPos(price) + 3} fill="#4a5068" fontSize="8" textAnchor="end" fontFamily="'JetBrains Mono', monospace">
+              {formatPrice(price)}
+            </text>
+          </g>
+        ))}
+        {displayCandles.map((c, i) => {
+          const open = c[1], high = c[2], low = c[3], close = c[4];
+          const bullish = close >= open;
+          const color = bullish ? "#26a69a" : "#ef5350";
+          const x = pL + i * gap + gap / 2;
+          const bodyTop = yPos(Math.max(open, close));
+          const bodyBottom = yPos(Math.min(open, close));
+          const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+          return (
+            <g key={i}>
+              <line x1={x} y1={yPos(high)} x2={x} y2={yPos(low)} stroke={color} strokeWidth="1" />
+              <rect x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} fill={bullish ? color : color} stroke={color} strokeWidth="0.5" rx="0.5" />
+            </g>
+          );
+        })}
+        {currentPrice && (
+          <>
+            <line x1={pL} y1={yPos(currentPrice)} x2={pL + cW} y2={yPos(currentPrice)} stroke="#7c4dff" strokeWidth="0.8" strokeDasharray="3,2" />
+            <rect x={pL + cW - 1} y={yPos(currentPrice) - 8} width={48} height={16} rx="3" fill="#7c4dff" />
+            <text x={pL + cW + 23} y={yPos(currentPrice) + 3} fill="#fff" fontSize="8" textAnchor="middle" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+              {formatPrice(currentPrice)}
+            </text>
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════════════════════════ */
+
+export default function App() {
+  const [windowWidth, setWindowWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  const isMobile = windowWidth < 700;
+
+  useEffect(() => {
+    const handler = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  // Core state
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedCoin, setSelectedCoin] = useState(COINS[0]);
+  const [page, setPage] = useState("dashboard");
+  const [signalFilter, setSignalFilter] = useState("all");
+  const [tradeAmounts, setTradeAmounts] = useState([100, 500, 1000]);
+  const [editingAmounts, setEditingAmounts] = useState(false);
+  const [amountsText, setAmountsText] = useState("100, 500, 1000");
+
+  // Market data
+  const [mergedPrices, setMergedPrices] = useState({});
+  const [globalData, setGlobalData] = useState(null);
+  const [fearGreed, setFearGreed] = useState(null);
+  const [sourceStatus, setSourceStatus] = useState({ ws: "loading", cg: "loading", bn: "loading", cc: "loading", fg: "loading", oh: "loading" });
+  const [ohlcData, setOhlcData] = useState({});
+  const [usingFallback, setUsingFallback] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsTickCount, setWsTickCount] = useState(0);
+  const [krakenLive, setKrakenLive] = useState({});
+  const [showSources, setShowSources] = useState(false);
+
+  // Paper trading
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [balance, setBalance] = useState(5000);
+  const [openTrades, setOpenTrades] = useState([]);
+  const [closedTrades, setClosedTrades] = useState([]);
+  const [riskLevel, setRiskLevel] = useState(1);
+  const [feeTier, setFeeTier] = useState(0);
+  const [showFeeSelector, setShowFeeSelector] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [expandedTrade, setExpandedTrade] = useState(null);
+  const [editingTradeId, setEditingTradeId] = useState(null);
+  const [editTP, setEditTP] = useState("");
+  const [editSL, setEditSL] = useState("");
+  const [editingBalance, setEditingBalance] = useState(false);
+  const [balanceText, setBalanceText] = useState("5000");
+  const [logFilter, setLogFilter] = useState("all");
+  const [expandedClosed, setExpandedClosed] = useState(null);
+  const [showPositionPanel, setShowPositionPanel] = useState(true);
+
+  // Refs
+  const wsRef = useRef(null);
+  const krakenRef = useRef({});
+  const reconnectTimer = useRef(null);
+
+  const fees = FEE_TIERS[feeTier];
+
+  // ─── Persistence ───────────────────────────────────────────
+  useEffect(() => {
+    async function load() {
+      try {
+        const raw = await storageGet("pts");
+        if (raw) {
+          const state = JSON.parse(raw);
+          if (state.bal != null) setBalance(state.bal);
+          if (state.ot) setOpenTrades(state.ot);
+          if (state.ct) setClosedTrades(state.ct);
+          if (state.ft != null) setFeeTier(state.ft);
+          if (state.rl != null) setRiskLevel(state.rl);
+          if (state.am) setTradeAmounts(state.am);
+        }
+      } catch {}
+      setDataLoaded(true);
+    }
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!dataLoaded) return;
+    storageSet("pts", JSON.stringify({
+      bal: balance,
+      ot: openTrades.map((t) => ({ ...t, priceHistory: (t.priceHistory || []).slice(-50) })),
+      ct: closedTrades.slice(-100).map((t) => ({ ...t, chartSnapshot: (t.chartSnapshot || []).slice(-60) })),
+      ft: feeTier, rl: riskLevel, am: tradeAmounts,
+    }));
+  }, [balance, openTrades, closedTrades, feeTier, riskLevel, tradeAmounts, dataLoaded]);
+
+  // ─── Price history tracking ────────────────────────────────
+  useEffect(() => {
+    if (!openTrades.length) return;
+    setOpenTrades((prev) => prev.map((t) => {
+      const cp = mergedPrices[t.coinId]?.price;
+      if (!cp) return t;
+      const hist = t.priceHistory || [];
+      if (!hist.length || Date.now() - hist[hist.length - 1].t > 5000) {
+        return { ...t, priceHistory: [...hist, { p: cp, t: Date.now() }].slice(-200) };
+      }
+      return t;
+    }));
+  }, [wsTickCount, mergedPrices]);
+
+  // ─── Auto TP/SL execution ─────────────────────────────────
+  useEffect(() => {
+    if (!openTrades.length) return;
+    openTrades.forEach((t) => {
+      const cp = mergedPrices[t.coinId]?.price;
+      if (!cp) return;
+      if (cp >= t.targetPrice) closeTrade(t.id, "Target ✅");
+      else if (cp <= t.stopPrice) closeTrade(t.id, "Stop ❌");
+    });
+  }, [mergedPrices, wsTickCount]);
+
+  // ─── Trade functions ───────────────────────────────────────
+  function enterTrade(signal, amount) {
+    const entryPrice = (signal.entryLow + signal.entryHigh) / 2;
+    const targetPrice = (signal.targetLow + signal.targetHigh) / 2;
+    const fee = amount * (fees.taker / 100);
+    const cost = amount + fee;
+
+    if (cost > balance) {
+      showNotification("Insufficient balance", "#ef5350");
+      return;
+    }
+
+    const id = Date.now();
+    const now = new Date();
+    const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
+
+    setBalance((b) => b - cost);
+    setOpenTrades((prev) => [...prev, {
+      id, symbol: signal.symbol, coinId: signal.coinId, type: signal.type,
+      entryPrice, targetPrice, stopPrice: signal.stop, coins: amount / entryPrice,
+      investAmt: amount, entryFee: fee, enteredAt: timestamp, enteredMs: now.getTime(),
+      priceHistory: [{ p: entryPrice, t: Date.now() }], riskLabel: RISK_PROFILES[riskLevel].label,
+      rr: signal.rr,
+    }]);
+    showNotification(`Opened ${signal.symbol} $${amount}`, "#26a69a");
+    setExpandedTrade(id);
+    setShowPositionPanel(true);
+  }
+
+  function closeTrade(id, reason) {
+    setOpenTrades((prev) => {
+      const trade = prev.find((t) => t.id === id);
+      if (!trade) return prev;
+
+      const cp = mergedPrices[trade.coinId]?.price || trade.entryPrice;
+      const grossValue = trade.coins * cp;
+      const exitFee = grossValue * (fees.maker / 100);
+      const netValue = grossValue - exitFee;
+      const pnl = netValue - trade.investAmt - trade.entryFee;
+      const pnlPct = (pnl / trade.investAmt) * 100;
+
+      const now = new Date();
+      const timestamp = now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + now.toLocaleTimeString();
+      const durationMs = trade.enteredMs ? now.getTime() - trade.enteredMs : 0;
+      const duration = durationMs < 60000 ? `${Math.round(durationMs / 1000)}s` :
+        durationMs < 3600000 ? `${Math.floor(durationMs / 60000)}m` :
+          `${Math.floor(durationMs / 3600000)}h ${Math.floor((durationMs % 3600000) / 60000)}m`;
+
+      setBalance((b) => b + netValue);
+      setClosedTrades((c) => [...c, {
+        ...trade, exitPrice: cp, exitFee, pnl, pnlPct,
+        reason: reason || "Manual", closedAt: timestamp, duration,
+        chartSnapshot: (trade.priceHistory || []).slice(-100),
+      }]);
+      showNotification(`${trade.symbol} ${reason || "Closed"} ${pnl >= 0 ? "+" : ""}$${formatPrice(pnl)}`, pnl >= 0 ? "#26a69a" : "#ef5350");
+      if (expandedTrade === id) setExpandedTrade(null);
+      return prev.filter((t) => t.id !== id);
+    });
+  }
+
+  function modifyTrade(id) {
+    setOpenTrades((prev) => prev.map((t) => {
+      if (t.id !== id) return t;
+      const newTP = parseFloat(editTP);
+      const newSL = parseFloat(editSL);
+      const updated = { ...t };
+      if (!isNaN(newTP) && newTP > t.entryPrice) updated.targetPrice = newTP;
+      if (!isNaN(newSL) && newSL < t.entryPrice) updated.stopPrice = newSL;
+      return updated;
+    }));
+    setEditingTradeId(null);
+    showNotification("TP/SL updated", "#7c4dff");
+  }
+
+  function showNotification(message, color) {
+    setNotification({ message, color });
+    setTimeout(() => setNotification(null), 2500);
+  }
+
+  // ─── Computed values ───────────────────────────────────────
+  const openPnl = useMemo(() => openTrades.reduce((sum, t) => {
+    const cp = mergedPrices[t.coinId]?.price || t.entryPrice;
+    return sum + (t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee);
+  }, 0), [openTrades, mergedPrices, fees]);
+
+  const closedPnl = useMemo(() => closedTrades.reduce((sum, t) => sum + t.pnl, 0), [closedTrades]);
+  const winCount = useMemo(() => closedTrades.filter((t) => t.pnl > 0).length, [closedTrades]);
+  const totalEquity = balance + openTrades.reduce((s, t) => s + t.investAmt + t.entryFee, 0) + openPnl;
+
+  const allSignals = useMemo(() =>
+    COINS.flatMap((coin) => {
+      const data = mergedPrices[coin.id];
+      if (!data?.price) return [];
+      return generateTradeSignals(coin, data, analyzeOHLC(ohlcData[coin.id] || null), RISK_PROFILES[riskLevel]);
+    }).sort((a, b) => b.score - a.score),
+    [mergedPrices, ohlcData, riskLevel]
+  );
+
+  const signalTypes = useMemo(() => ["all", ...new Set(allSignals.map((t) => t.type.toLowerCase()))], [allSignals]);
+  const filteredSignals = signalFilter === "all" ? allSignals : allSignals.filter((t) => t.type.toLowerCase() === signalFilter);
+
+  function saveAmounts() {
+    const parsed = amountsText.split(",").map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n) && n > 0);
+    if (parsed.length > 0) { setTradeAmounts(parsed); setEditingAmounts(false); }
+  }
+
+  const fgData = fearGreed || { value: 62, label: "Greed" };
+  const fgColor = fgData.value > 55 ? "#26a69a" : fgData.value > 45 ? "#d4a017" : "#ef5350";
+
+  // ─── WebSocket (Kraken) ────────────────────────────────────
+  const connectWebSocket = useCallback(() => {
+    try {
+      if (wsRef.current?.readyState < 2) return;
+      const ws = new WebSocket("wss://ws.kraken.com");
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        setSourceStatus((p) => ({ ...p, ws: "live" }));
+        ws.send(JSON.stringify({
+          event: "subscribe",
+          pair: COINS.map((c) => c.krakenWs),
+          subscription: { name: "ticker" },
+        }));
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (Array.isArray(data) && data.length >= 4) {
+            const ticker = data[1], pairName = data[3];
+            const coin = COINS.find((c) => c.krakenWs === pairName);
+            if (coin && ticker?.c) {
+              const lastPrice = parseFloat(ticker.c[0]);
+              const openPrice = parseFloat(ticker.o[0]);
+              krakenRef.current = { ...krakenRef.current };
+              krakenRef.current[coin.id] = {
+                price: lastPrice, bid: parseFloat(ticker.b[0]), ask: parseFloat(ticker.a[0]),
+                high: parseFloat(ticker.h[1]), low: parseFloat(ticker.l[1]),
+                vol: parseFloat(ticker.v[1]) * lastPrice,
+                change: ((lastPrice - openPrice) / openPrice) * 100,
+                spread: ((parseFloat(ticker.a[0]) - parseFloat(ticker.b[0])) / lastPrice) * 100,
+                ts: Date.now(),
+              };
+              setKrakenLive({ ...krakenRef.current });
+              setWsTickCount((p) => p + 1);
+            }
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        setSourceStatus((p) => ({ ...p, ws: "error" }));
+        reconnectTimer.current = setTimeout(connectWebSocket, 5000);
+      };
+      ws.onerror = () => setSourceStatus((p) => ({ ...p, ws: "error" }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    connectWebSocket();
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    };
+  }, [connectWebSocket]);
+
+  // ─── OHLC data fetch ──────────────────────────────────────
+  const fetchOHLC = useCallback(async () => {
+    const result = {};
+    let successCount = 0;
+    for (const coin of COINS) {
+      try {
+        const data = await safeFetch(`https://api.kraken.com/0/public/OHLC?pair=${coin.krakenOhlc}&interval=15`);
+        if (data.result) {
+          const key = Object.keys(data.result).find((k) => k !== "last");
+          if (key) {
+            result[coin.id] = data.result[key].slice(-100).map((c) => [c[0], parseFloat(c[1]), parseFloat(c[2]), parseFloat(c[3]), parseFloat(c[4]), parseFloat(c[5]), parseFloat(c[6])]);
+            successCount++;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 300));
+      } catch {}
+    }
+    setOhlcData(result);
+    setSourceStatus((p) => ({ ...p, oh: successCount > 0 ? "live" : "error" }));
+  }, []);
+
+  // ─── All prices fetch ─────────────────────────────────────
+  const fetchAllPrices = useCallback(async () => {
+    const priceData = {};
+    COINS.forEach((c) => { priceData[c.id] = { prices: [], changes: [], highs: [], lows: [], volumes: [], sparkline: null, sources: [] }; });
+    let anySuccess = false;
+
+    // Kraken WS data
+    COINS.forEach((c) => {
+      const k = krakenRef.current[c.id];
+      if (k && Date.now() - k.ts < 120000) {
+        priceData[c.id].prices.push(k.price);
+        priceData[c.id].changes.push(k.change);
+        priceData[c.id].highs.push(k.high);
+        priceData[c.id].lows.push(k.low);
+        priceData[c.id].volumes.push(k.vol);
+        priceData[c.id].sources.push("WS");
+        anySuccess = true;
+      }
+    });
+
+    // CoinGecko
+    try {
+      const data = await safeFetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINS.map((c) => c.id).join(",")}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`);
+      data.forEach((coin) => {
+        if (priceData[coin.id]) {
+          priceData[coin.id].prices.push(coin.current_price);
+          if (coin.price_change_percentage_24h != null) priceData[coin.id].changes.push(coin.price_change_percentage_24h);
+          if (coin.high_24h) priceData[coin.id].highs.push(coin.high_24h);
+          if (coin.total_volume) priceData[coin.id].volumes.push(coin.total_volume);
+          if (coin.sparkline_in_7d?.price) priceData[coin.id].sparkline = coin.sparkline_in_7d.price.slice(-48);
+          priceData[coin.id].sources.push("CG");
+        }
+      });
+      setSourceStatus((p) => ({ ...p, cg: "live" }));
+      anySuccess = true;
+    } catch { setSourceStatus((p) => ({ ...p, cg: "error" })); }
+
+    // Binance
+    try {
+      const data = await safeFetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(COINS.map((c) => c.binance).filter(Boolean))}`);
+      data.forEach((t) => {
+        const coin = COINS.find((c) => c.binance === t.symbol);
+        if (coin && priceData[coin.id]) {
+          priceData[coin.id].prices.push(parseFloat(t.lastPrice));
+          priceData[coin.id].changes.push(parseFloat(t.priceChangePercent));
+          priceData[coin.id].sources.push("BN");
+        }
+      });
+      setSourceStatus((p) => ({ ...p, bn: "live" }));
+      anySuccess = true;
+    } catch { setSourceStatus((p) => ({ ...p, bn: "error" })); }
+
+    // CryptoCompare
+    try {
+      const data = await safeFetch(`https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${COINS.map((c) => c.cc).join(",")}&tsyms=USD`);
+      if (data.RAW) {
+        COINS.forEach((c) => {
+          const raw = data.RAW[c.cc]?.USD;
+          if (raw && priceData[c.id]) {
+            priceData[c.id].prices.push(raw.PRICE);
+            if (raw.CHANGEPCT24HOUR != null) priceData[c.id].changes.push(raw.CHANGEPCT24HOUR);
+            priceData[c.id].sources.push("CC");
+          }
+        });
+      }
+      setSourceStatus((p) => ({ ...p, cc: "live" }));
+      anySuccess = true;
+    } catch { setSourceStatus((p) => ({ ...p, cc: "error" })); }
+
+    // Fear & Greed
+    try {
+      const data = await safeFetch("https://api.alternative.me/fng/?limit=1");
+      if (data.data?.[0]) setFearGreed({ value: parseInt(data.data[0].value), label: data.data[0].value_classification });
+      setSourceStatus((p) => ({ ...p, fg: "live" }));
+    } catch { setSourceStatus((p) => ({ ...p, fg: "error" })); }
+
+    // Global data
+    try {
+      const data = await safeFetch("https://api.coingecko.com/api/v3/global");
+      if (data.data) setGlobalData(data.data);
+    } catch {}
+
+    // Merge or fallback
+    if (!anySuccess) {
+      const fallback = {};
+      COINS.forEach((c) => {
+        const fb = FALLBACK_PRICES[c.id];
+        if (fb) fallback[c.id] = { price: fb.price, change24h: fb.change, sparkline: generateSparkline(fb.price, fb.change), sourceCount: 0, sourceNames: ["FB"], bid: null, ask: null, spread: null };
+      });
+      setMergedPrices(fallback);
+      setUsingFallback(true);
+      return;
+    }
+
+    setUsingFallback(false);
+    const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+    const merged = {};
+    COINS.forEach((c) => {
+      const pd = priceData[c.id];
+      const avgPrice = avg(pd.prices);
+      const kl = krakenRef.current[c.id];
+      if (!avgPrice) return;
+      merged[c.id] = {
+        price: avgPrice, change24h: avg(pd.changes), high24h: pd.highs.length ? Math.max(...pd.highs) : null,
+        volume: avg(pd.volumes), sparkline: pd.sparkline || generateSparkline(avgPrice, avg(pd.changes) || 0),
+        sourceCount: pd.prices.length, sourceNames: [...new Set(pd.sources)],
+        bid: kl?.bid || null, ask: kl?.ask || null, spread: kl?.spread || null,
+      };
+    });
+    setMergedPrices(merged);
+  }, []);
+
+  useEffect(() => {
+    fetchAllPrices();
+    fetchOHLC();
+    const i1 = setInterval(fetchAllPrices, 60000);
+    const i2 = setInterval(fetchOHLC, 300000);
+    return () => { clearInterval(i1); clearInterval(i2); };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Merge Kraken WS ticks into prices
+  useEffect(() => {
+    if (!Object.keys(krakenLive).length) return;
+    setMergedPrices((prev) => {
+      const next = { ...prev };
+      COINS.forEach((c) => {
+        const kl = krakenLive[c.id];
+        if (kl && next[c.id]) {
+          next[c.id] = { ...next[c.id], bid: kl.bid, ask: kl.ask, spread: kl.spread };
+          if (kl.ts > (next[c.id]._t || 0)) {
+            next[c.id].price = next[c.id].price ? next[c.id].price * 0.4 + kl.price * 0.6 : kl.price;
+            next[c.id].change24h = kl.change;
+            next[c.id]._t = kl.ts;
+          }
+        }
+      });
+      return next;
+    });
+  }, [wsTickCount]);
+
+  const liveSourceCount = Object.values(sourceStatus).filter((s) => s === "live").length;
+  const hasPriceData = Object.values(mergedPrices).some((m) => m.price != null);
+  const selectedCoinData = mergedPrices[selectedCoin.id];
+  const selectedCoinChange = selectedCoinData?.change24h || 0;
+
+  // ─── CSS ──────────────────────────────────────────────────
+  const t = {
+    bg: "#0f1118",
+    surface: "#181a24",
+    surfaceAlt: "#1f2233",
+    border: "#262838",
+    borderHover: "#363850",
+    text: "#e0e2e8",
+    textMuted: "#8a8f9c",
+    textDim: "#4a5068",
+    accent: "#7c4dff",
+    accentDim: "#7c4dff30",
+    green: "#26a69a",
+    greenDim: "#26a69a20",
+    red: "#ef5350",
+    redDim: "#ef535020",
+    yellow: "#d4a017",
+    yellowDim: "#d4a01720",
+  };
+
+  const panelStyle = { background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10 };
+  const monoFont = "'JetBrains Mono', 'Fira Code', 'SF Mono', monospace";
+
+  // ─── RENDER ───────────────────────────────────────────────
+  return (
+    <div style={{ background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", WebkitTextSizeAdjust: "100%" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+      {/* ─── NOTIFICATION ─── */}
+      {notification && (
+        <div style={{
+          position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 999,
+          background: notification.color, color: "#fff", padding: "10px 24px", borderRadius: 8,
+          fontSize: 13, fontWeight: 600, boxShadow: `0 8px 32px ${notification.color}40`, maxWidth: "90vw",
+          textAlign: "center", fontFamily: monoFont,
+        }}>
+          {notification.message}
+        </div>
+      )}
+
+      {/* ═══ TOP BAR ═══ */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: isMobile ? "12px 14px" : "12px 24px", borderBottom: `1px solid ${t.border}`,
+        background: t.surface,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: `linear-gradient(135deg, ${t.accent}, #b388ff)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#fff" }}>C</div>
+            {!isMobile && <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.5 }}>CryptoTrader</span>}
+          </div>
+          <span style={{ fontSize: 9, fontWeight: 700, color: t.yellow, background: t.yellowDim, padding: "2px 6px", borderRadius: 4, letterSpacing: 1, fontFamily: monoFont }}>PAPER</span>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {wsConnected && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, background: t.greenDim, border: `1px solid ${t.green}30`, borderRadius: 6, padding: "4px 10px" }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.green, animation: "pulse 2s infinite" }} />
+              <span style={{ fontSize: 10, color: t.green, fontWeight: 600, fontFamily: monoFont }}>LIVE</span>
+            </div>
+          )}
+          <span style={{ fontSize: 11, color: t.textMuted, fontFamily: monoFont }}>
+            {currentTime.toLocaleTimeString()}
+          </span>
+          <button onClick={() => { fetchAllPrices(); fetchOHLC(); }} style={{ background: t.surfaceAlt, border: `1px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>↻</button>
+        </div>
       </div>
 
-      {sl?(<div style={{display:"flex",gap:0,marginBottom:10,background:"#111827",borderRadius:10,overflow:"hidden",border:"1px solid #1e293b"}}><button onClick={function(){sPg("dashboard");}} style={{flex:1,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",border:"none",background:pg==="dashboard"?"#8b5cf6":"transparent",color:pg==="dashboard"?"#fff":"#64748b"}}>📊 Dashboard</button><button onClick={function(){sPg("log");}} style={{flex:1,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer",border:"none",background:pg==="log"?"#8b5cf6":"transparent",color:pg==="log"?"#fff":"#64748b"}}>📋 Log {ct.length>0&&<span style={{background:"#f59e0b",color:"#000",fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 6px",marginLeft:4}}>{ct.length}</span>}</button></div>):(<div style={{textAlign:"center",padding:"30px"}}><span style={{color:"#64748b"}}>Loading...</span></div>)}
-
-      {sl&&pg==="dashboard"&&(<>
-        <div style={{background:"linear-gradient(135deg,#111827,#0f172a)",border:"1px solid #8b5cf640",borderRadius:14,padding:mob?"12px":"16px 20px",marginBottom:8}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:13,fontWeight:700,color:"#8b5cf6"}}>📋 Paper Trading</span><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:"#22c55e15",color:"#22c55e"}}>💾 Saved</span></div><div style={{display:"flex",gap:6}}><button onClick={function(){sSp(!sp);}} style={{background:"none",border:"1px solid #334155",borderRadius:6,padding:"2px 8px",fontSize:10,color:"#64748b",cursor:"pointer"}}>{sp?"−":"+"}</button><button onClick={function(){sBal(5000);sOt([]);sCt([]);sDel("pts");}} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:6,padding:"2px 8px",fontSize:10,color:"#ef4444",cursor:"pointer"}}>Reset</button></div></div>
-          <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(5,1fr)",gap:8}}>
-            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>CASH</div>{eb?(<div style={{display:"flex",gap:4}}><input value={tb} onChange={function(e){sTb(e.target.value);}} style={{background:"#111827",border:"1px solid #8b5cf6",borderRadius:6,padding:"2px 6px",fontSize:14,color:"#f8fafc",width:80,outline:"none"}}/><button onClick={function(){var v=parseFloat(tb);if(!isNaN(v)&&v>=0){sBal(v);sEb(false);}}} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:4,padding:"2px 6px",fontSize:10,cursor:"pointer"}}>✓</button></div>):(<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${bal.toFixed(2)}</span><button onClick={function(){sTb(bal.toFixed(0));sEb(true);}} style={{background:"none",border:"none",fontSize:11,cursor:"pointer",color:"#64748b"}}>✏️</button></div>)}</div>
-            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>EQUITY</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${tEq.toFixed(2)}</div></div>
-            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>OPEN P&L</div><div style={{fontSize:16,fontWeight:700,color:oPnl>=0?"#22c55e":"#ef4444"}}>{oPnl>=0?"+":""}${fmt(oPnl)}</div></div>
-            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>REALIZED</div><div style={{fontSize:16,fontWeight:700,color:cPnl>=0?"#22c55e":"#ef4444"}}>{cPnl>=0?"+":""}${fmt(cPnl)}</div></div>
-            <div style={{background:"#0a0e17",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>WIN RATE</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>{ct.length>0?((wins/ct.length)*100).toFixed(0)+"%":"—"} <span style={{fontSize:10,color:"#64748b"}}>({wins}/{ct.length})</span></div></div>
-          </div>
-          {sp&&ot.length>0&&(<div style={{marginTop:10}}><div style={{fontSize:10,color:"#64748b",marginBottom:6}}>OPEN ({ot.length})</div>{ot.map(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice;var pnl=t.coins*cp*(1-fees.mk/100)-t.investAmt-t.entryFee;var isE=et===t.id;return(<div key={t.id} style={{background:"#0a0e17",borderRadius:10,padding:"10px",marginBottom:6,border:"1px solid "+(pnl>=0?"#22c55e20":"#ef444420")}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4,cursor:"pointer"}} onClick={function(){sEt(isE?null:t.id);}}><div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontWeight:700,fontSize:13,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,color:"#64748b"}}>{t.type}·${t.investAmt}·{t.enteredAt}</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:12,fontWeight:700,color:pnl>=0?"#22c55e":"#ef4444"}}>{pnl>=0?"+":""}${fmt(pnl)}</span><button onClick={function(e){e.stopPropagation();clT(t.id,"Manual");}} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:6,padding:"3px 8px",fontSize:10,color:"#ef4444",cursor:"pointer"}}>Close</button><span style={{fontSize:9,color:"#64748b"}}>{isE?"▲":"▼"}</span></div></div>{isE&&<TChart trade={t} cp={cp} mobile={mob}/>}</div>);})}</div>)}
-          {sp&&ct.length>0&&(<div style={{marginTop:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:3}}>HISTORY ({ct.length})</div><div style={{maxHeight:80,overflowY:"auto"}}>{ct.slice().reverse().slice(0,8).map(function(t,i){return(<div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 6px",background:"#111827",borderRadius:4,marginBottom:2}}><span style={{color:"#94a3b8"}}>{t.symbol} {t.type}·${t.investAmt}·{t.reason}·{t.duration||""}</span><span style={{fontWeight:600,color:t.pnl>=0?"#22c55e":"#ef4444"}}>{t.pnl>=0?"+":""}${fmt(t.pnl)}</span></div>);})}</div></div>)}
+      {/* ═══ NAV TABS ═══ */}
+      {dataLoaded && (
+        <div style={{ display: "flex", background: t.surface, borderBottom: `1px solid ${t.border}` }}>
+          {[
+            { key: "dashboard", label: "Dashboard", icon: "◉" },
+            { key: "log", label: `Trade Log${closedTrades.length > 0 ? ` (${closedTrades.length})` : ""}`, icon: "☰" },
+          ].map((tab) => (
+            <button key={tab.key} onClick={() => setPage(tab.key)} style={{
+              flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: "none", borderBottom: page === tab.key ? `2px solid ${t.accent}` : "2px solid transparent",
+              background: "transparent", color: page === tab.key ? t.text : t.textDim,
+              transition: "all 0.2s",
+            }}>
+              <span style={{ marginRight: 4 }}>{tab.icon}</span>{tab.label}
+            </button>
+          ))}
         </div>
-        <div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:mob?"8px":"10px 14px",marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:6}}>RISK</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>{RISK.map(function(rp,i){var ac=rl===i;return(<button key={i} onClick={function(){sRl(i);}} style={{background:ac?rp.color+"20":"#0a0e17",border:"2px solid "+(ac?rp.color:"#1e293b"),borderRadius:10,padding:"8px 6px",cursor:"pointer",textAlign:"center"}}><div style={{fontSize:16}}>{rp.emoji}</div><div style={{fontSize:10,fontWeight:700,color:ac?rp.color:"#94a3b8"}}>{rp.label}</div><div style={{fontSize:8,color:"#64748b"}}>{rp.tm}x/{rp.sm}x</div></button>);})}</div></div>
-        <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}><div style={{background:"#111827",border:"1px solid #f9731630",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8,flex:1}}><span style={{fontSize:10,color:"#f97316",fontWeight:700}}>🐙</span><span style={{fontSize:10,color:"#94a3b8"}}>{fees.mk}%/{fees.tk}%</span><button onClick={function(){sSf(!sf2);}} style={{background:"#f9731620",border:"none",borderRadius:4,padding:"2px 8px",fontSize:9,color:"#f97316",cursor:"pointer",marginLeft:"auto"}}>{sf2?"Close":"Change"}</button></div><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:10,color:lc>=4?"#22c55e":"#f59e0b",fontWeight:600}}>{lc}/7 src</span><button onClick={function(){sSs(!ss);}} style={{background:"none",border:"1px solid #334155",borderRadius:4,padding:"2px 6px",fontSize:9,color:"#64748b",cursor:"pointer"}}>{ss?"−":"+"}</button></div></div>
-        {sf2&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,marginBottom:6}}>{FTIERS.map(function(t,i){return(<button key={i} onClick={function(){sFt(i);sSf(false);}} style={{background:ft===i?"#f9731625":"#0a0e17",border:"1px solid "+(ft===i?"#f97316":"#1e293b"),borderRadius:6,padding:"6px 8px",cursor:"pointer",textAlign:"left"}}><div style={{fontSize:10,fontWeight:600,color:ft===i?"#f97316":"#94a3b8"}}>{t.label}</div><div style={{fontSize:9,color:"#64748b"}}>{t.mk}%/{t.tk}%</div></button>);})}</div>}
-        {ss&&<div style={{display:"flex",gap:8,flexWrap:"wrap",background:"#111827",borderRadius:8,padding:"8px",marginBottom:6}}><SDot status={src.ws} label="WS"/><SDot status={src.oh} label="OHLC"/><SDot status={src.bn} label="Binance"/><SDot status={src.cg} label="CoinGecko"/><SDot status={src.cc} label="CC"/><SDot status={src.fg} label="F&G"/></div>}
-        {uf&&<div style={{background:"#f59e0b15",border:"1px solid #f59e0b40",borderRadius:10,padding:"8px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:11,color:"#f59e0b",flex:1}}>⚠️ Sample data — deploy for live</span><button onClick={fAll} style={{background:"#f59e0b",color:"#000",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Retry</button></div>}
-        {hp&&(<>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12,marginTop:8}}><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>MKT CAP</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${gd?(gd.total_market_cap.usd/1e12).toFixed(2):"2.84"}T</div></div><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>24H VOL</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>${gd?(gd.total_volume.usd/1e9).toFixed(1):"98.2"}B</div></div><div style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>F&G</div><div style={{fontSize:16,fontWeight:700,color:"#f8fafc"}}>{fgD.value||"—"}</div>{fgD.label&&<div style={{fontSize:10,color:fgC}}>{fgD.label}</div>}</div></div>
-          <div style={{overflowX:"auto",marginBottom:14,WebkitOverflowScrolling:"touch"}}><div style={{display:"flex",gap:8,paddingBottom:4}}>{COINS.map(function(c){var d=merged[c.id];if(!d||!d.price)return null;var ch=d.change24h||0,col=ch>=0?"#22c55e":"#ef4444";return(<div key={c.id} style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"10px",minWidth:mob?125:160,flex:"0 0 auto"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontWeight:700,fontSize:12,color:"#f8fafc"}}>{c.symbol}</span><span style={{fontSize:10,padding:"1px 5px",borderRadius:5,background:col+"18",color:col,fontWeight:600}}>{ch>=0?"+":""}{ch.toFixed(1)}%</span></div><div style={{fontSize:15,fontWeight:700,color:"#f8fafc",marginBottom:3}}>${d.price.toLocaleString(undefined,{minimumFractionDigits:d.price<1?4:d.price<100?2:0})}</div><MiniC data={d.sparkline} color={col} mobile={mob}/></div>);})}</div></div>
-          <div style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><h2 style={{fontSize:mob?14:16,fontWeight:600,color:"#f8fafc",margin:0}}>Trade Ideas ({fT.length})</h2>{ea?(<div style={{display:"flex",gap:4}}><input value={ta} onChange={function(e){sTa(e.target.value);}} style={{background:"#0a0e17",border:"1px solid #8b5cf6",borderRadius:8,padding:"5px 8px",fontSize:11,color:"#f8fafc",width:100,outline:"none"}}/><button onClick={svAm} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"5px 7px",fontSize:11,cursor:"pointer"}}>✓</button><button onClick={function(){sEa(false);}} style={{background:"#1e293b",color:"#94a3b8",border:"none",borderRadius:6,padding:"5px 7px",fontSize:11,cursor:"pointer"}}>✕</button></div>):(<button onClick={function(){sTa(am.join(", "));sEa(true);}} style={{background:"#1e293b",color:"#94a3b8",border:"1px solid #334155",borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>✏️ {am.map(function(a){return"$"+a;}).join(", ")}</button>)}</div><div style={{display:"flex",gap:4,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>{tTypes.map(function(tp){return(<button key={tp} onClick={function(){sTab(tp);}} style={{background:tab===tp?"#8b5cf6":"#1e293b",color:tab===tp?"#fff":"#94a3b8",border:"none",borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize",whiteSpace:"nowrap"}}>{tp}</button>);})}</div></div>
-          <div style={{display:"grid",gap:mob?10:12}}>{fT.map(function(t,i){return(<div key={i} style={{background:"#111827",border:"1px solid #1e293b",borderRadius:12,padding:mob?"12px":"16px 18px",position:"relative"}}>{i===0&&<div style={{position:"absolute",top:-1,right:14,background:"linear-gradient(135deg,#f59e0b,#f97316)",color:"#000",fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:"0 0 6px 6px"}}>TOP</div>}<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:6}}><span style={{fontWeight:700,fontSize:mob?15:17,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,padding:"2px 7px",borderRadius:6,background:t.typeColor+"20",color:t.typeColor,fontWeight:600}}>{t.type}</span><span style={{fontSize:10,padding:"2px 5px",borderRadius:6,background:"#22c55e15",color:"#22c55e",fontWeight:600}}>+{t.profitPct.toFixed(1)}%</span>{t.trend&&<span style={{fontSize:9,padding:"2px 5px",borderRadius:5,background:t.trend==="up"?"#22c55e15":"#ef444415",color:t.trend==="up"?"#22c55e":"#ef4444"}}>{t.trend==="up"?"↑":"↓"}</span>}</div><p style={{fontSize:mob?11:12,color:"#94a3b8",lineHeight:1.5,margin:"0 0 8px"}}>{t.desc}</p><div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>{t.rsi!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>RSI </span><span style={{color:t.rsi>70?"#ef4444":t.rsi<30?"#22c55e":"#f59e0b",fontWeight:600}}>{t.rsi.toFixed(0)}</span></span>}{t.atrPct!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>Vol </span><span style={{color:"#8b5cf6",fontWeight:600}}>{t.atrPct.toFixed(1)}%</span></span>}{t.supportLevel!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>S:</span><span style={{color:"#06b6d4",fontWeight:600}}>${fmt(t.supportLevel)}</span></span>}{t.resistanceLevel!=null&&<span style={{background:"#0a0e17",borderRadius:5,padding:"2px 6px",fontSize:10}}><span style={{color:"#64748b"}}>R:</span><span style={{color:"#f59e0b",fontWeight:600}}>${fmt(t.resistanceLevel)}</span></span>}</div><div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:6,marginBottom:8}}>{[{l:"Entry",v:"$"+fmt(t.entryLow)+"–"+fmt(t.entryHigh),c:"#8b5cf6"},{l:"Target",v:"$"+fmt(t.targetLow)+"–"+fmt(t.targetHigh),c:"#22c55e"},{l:"Stop",v:"$"+fmt(t.stop),c:"#ef4444"},{l:"R/R",v:t.rr,c:"#f59e0b"}].map(function(x,j){return(<div key={j} style={{background:"#0a0e17",borderRadius:8,padding:"7px 9px"}}><div style={{fontSize:9,color:"#64748b",marginBottom:2}}>{x.l}</div><div style={{fontSize:mob?11:13,fontWeight:600,color:x.c,wordBreak:"break-all"}}>{x.v}</div></div>);})}</div><div style={{marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:3}}>Confidence</div><ConfBar value={t.confidence}/></div><div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"8px 0",borderTop:"1px solid #1e293b"}}><span style={{fontSize:10,color:"#8b5cf6",fontWeight:600}}>📋 Paper:</span>{am.map(function(a){var ok=a+a*(fees.tk/100)<=bal;return(<button key={a} onClick={function(){enT(t,a);}} disabled={!ok} style={{background:ok?"#8b5cf620":"#1e293b",border:"1px solid "+(ok?"#8b5cf6":"#334155"),borderRadius:8,padding:mob?"7px 12px":"7px 16px",fontSize:12,fontWeight:700,cursor:ok?"pointer":"not-allowed",color:ok?"#f8fafc":"#475569"}}>${a}</button>);})}</div>{!mob&&<TExamples trade={t} amounts={am} fees={{mk:fees.mk,tk:fees.tk}} mobile={false}/>}</div>);})}</div>
-        </>)}
-        {!hp&&<div style={{textAlign:"center",padding:"50px 20px"}}><div style={{fontSize:36,marginBottom:12}}>📡</div><div style={{fontSize:16,fontWeight:600,color:"#f8fafc"}}>Connecting...</div></div>}
-      </>)}
+      )}
 
-      {sl&&pg==="log"&&(<div>
-        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(6,1fr)",gap:8,marginBottom:12}}>{[{l:"Trades",v:ct.length,c:"#f8fafc"},{l:"Wins",v:wins,c:"#22c55e"},{l:"Losses",v:ct.length-wins,c:"#ef4444"},{l:"Win%",v:ct.length>0?((wins/ct.length)*100).toFixed(0)+"%":"—",c:"#f59e0b"},{l:"P&L",v:(cPnl>=0?"+":"")+"$"+fmt(cPnl),c:cPnl>=0?"#22c55e":"#ef4444"},{l:"Avg",v:ct.length>0?((cPnl/ct.length)>=0?"+":"")+"$"+fmt(cPnl/ct.length):"—",c:cPnl>=0?"#22c55e":"#ef4444"}].map(function(x,i){return(<div key={i} style={{background:"#111827",border:"1px solid #1e293b",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"#64748b",marginBottom:3}}>{x.l}</div><div style={{fontSize:18,fontWeight:700,color:x.c}}>{x.v}</div></div>);})}</div>
-        <EqCurve closedTrades={ct} mobile={mob}/>
-        {ot.length>0&&(<div style={{marginBottom:14}}><h3 style={{fontSize:14,fontWeight:600,color:"#f8fafc",margin:"0 0 10px"}}>🟢 Open ({ot.length})</h3>{ot.map(function(t){var cp=merged[t.coinId]?merged[t.coinId].price:t.entryPrice;var pnl=t.coins*cp*(1-fees.mk/100)-t.investAmt-t.entryFee;var pp=(pnl/t.investAmt)*100;var isE=et===t.id;return(<div key={t.id} style={{background:"#111827",border:"1px solid "+(pnl>=0?"#22c55e30":"#ef444430"),borderRadius:12,padding:"12px 14px",marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8,cursor:"pointer"}} onClick={function(){sEt(isE?null:t.id);}}><div><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontWeight:700,fontSize:15,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:"#06b6d420",color:"#06b6d4",fontWeight:600}}>{t.type}</span>{t.riskLabel&&<span style={{fontSize:9,padding:"2px 5px",borderRadius:4,background:"#1e293b",color:"#64748b"}}>{t.riskLabel}</span>}</div><div style={{fontSize:10,color:"#64748b"}}>{t.enteredAt}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:16,fontWeight:700,color:pnl>=0?"#22c55e":"#ef4444"}}>{pnl>=0?"+":""}${fmt(pnl)}</div><div style={{fontSize:10,color:pnl>=0?"#22c55e":"#ef4444"}}>{pp.toFixed(1)}%</div></div></div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,fontSize:10}}><div><span style={{color:"#64748b"}}>Invest: </span><span style={{color:"#f8fafc",fontWeight:600}}>${t.investAmt}</span></div><div><span style={{color:"#64748b"}}>Entry: </span><span style={{color:"#8b5cf6",fontWeight:600}}>${fmt(t.entryPrice)}</span></div><div><span style={{color:"#64748b"}}>TP: </span><span style={{color:"#22c55e",fontWeight:600}}>${fmt(t.targetPrice)}</span></div><div><span style={{color:"#64748b"}}>SL: </span><span style={{color:"#ef4444",fontWeight:600}}>${fmt(t.stopPrice)}</span></div></div>
-          <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}><button onClick={function(e){e.stopPropagation();clT(t.id,"Manual");}} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:6,padding:"5px 12px",fontSize:11,color:"#ef4444",cursor:"pointer",fontWeight:600}}>Close</button><button onClick={function(){sEt(isE?null:t.id);}} style={{background:"#1e293b",border:"1px solid #334155",borderRadius:6,padding:"5px 12px",fontSize:11,color:"#94a3b8",cursor:"pointer"}}>{isE?"Hide":"Chart"}</button><button onClick={function(e){e.stopPropagation();if(eti===t.id){sEti(null);}else{sEti(t.id);sEtp(t.targetPrice.toString());sEsl(t.stopPrice.toString());}}} style={{background:"#8b5cf620",border:"1px solid #8b5cf640",borderRadius:6,padding:"5px 12px",fontSize:11,color:"#8b5cf6",cursor:"pointer"}}>{eti===t.id?"Cancel":"TP/SL"}</button></div>
-          {eti===t.id&&(<div style={{background:"#0a0e17",borderRadius:8,padding:10,marginTop:8,display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}} onClick={function(e){e.stopPropagation();}}><div><div style={{fontSize:9,color:"#22c55e",marginBottom:3}}>TARGET</div><input value={etp} onChange={function(e){sEtp(e.target.value);}} style={{background:"#111827",border:"1px solid #22c55e40",borderRadius:6,padding:"6px 10px",fontSize:13,color:"#22c55e",width:100,outline:"none"}}/></div><div><div style={{fontSize:9,color:"#ef4444",marginBottom:3}}>STOP</div><input value={esl} onChange={function(e){sEsl(e.target.value);}} style={{background:"#111827",border:"1px solid #ef444440",borderRadius:6,padding:"6px 10px",fontSize:13,color:"#ef4444",width:100,outline:"none"}}/></div><button onClick={function(){modT(t.id);}} style={{background:"#8b5cf6",color:"#fff",border:"none",borderRadius:6,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply</button></div>)}
-          {isE&&<TChart trade={t} cp={cp} mobile={mob}/>}
-        </div>);})}</div>)}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><h3 style={{fontSize:14,fontWeight:600,color:"#f8fafc",margin:0}}>📜 History ({ct.length})</h3><div style={{display:"flex",gap:4}}>{["all","wins","losses"].map(function(f){return(<button key={f} onClick={function(){sLf(f);}} style={{background:lf===f?"#8b5cf6":"#1e293b",color:lf===f?"#fff":"#64748b",border:"none",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{f}</button>);})}</div></div>
-        {ct.length===0&&<div style={{textAlign:"center",padding:"30px",color:"#64748b"}}><div style={{fontSize:28,marginBottom:6}}>📭</div><div style={{fontSize:13}}>No trades yet</div></div>}
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>{ct.slice().reverse().filter(function(t){if(lf==="wins")return t.pnl>0;if(lf==="losses")return t.pnl<=0;return true;}).map(function(t,i){var w2=t.pnl>0,isE2=ec===i;return(<div key={i} style={{background:"#111827",border:"1px solid "+(w2?"#22c55e20":"#ef444420"),borderRadius:12,padding:mob?"12px":"14px 16px",cursor:"pointer"}} onClick={function(){sEc(isE2?null:i);}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:6}}><div><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontSize:15,fontWeight:700,color:"#f8fafc"}}>{t.symbol}</span><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:w2?"#22c55e20":"#ef444420",color:w2?"#22c55e":"#ef4444",fontWeight:600}}>{t.type}</span><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:w2?"#22c55e15":"#ef444415",color:w2?"#22c55e":"#ef4444",fontWeight:700}}>{t.reason}</span>{t.riskLabel&&<span style={{fontSize:9,padding:"2px 5px",borderRadius:4,background:"#1e293b",color:"#64748b"}}>{t.riskLabel}</span>}<span style={{fontSize:9,color:"#475569"}}>{isE2?"▲":"▼"}</span></div><div style={{fontSize:10,color:"#64748b"}}>{t.rr&&<span>R/R:{t.rr} · </span>}{t.duration&&<span>{t.duration}</span>}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:700,color:w2?"#22c55e":"#ef4444"}}>{t.pnl>=0?"+":""}${fmt(t.pnl)}</div><div style={{fontSize:12,color:w2?"#22c55e":"#ef4444"}}>{t.pnlPct>=0?"+":""}{t.pnlPct.toFixed(1)}%</div></div></div>{isE2&&(<div><div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:6,marginBottom:6}}><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>INVESTED</div><div style={{fontSize:13,fontWeight:600,color:"#f8fafc"}}>${t.investAmt}</div></div><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>ENTRY→EXIT</div><div style={{fontSize:13,fontWeight:600,color:"#f8fafc"}}>${fmt(t.entryPrice)}→${fmt(t.exitPrice)}</div></div><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>FEES</div><div style={{fontSize:13,fontWeight:600,color:"#f97316"}}>${fmt(t.entryFee+(t.exitFee||0))}</div></div><div style={{background:"#0a0e17",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:"#64748b"}}>COINS</div><div style={{fontSize:13,fontWeight:600,color:"#94a3b8"}}>{fmt(t.coins)}</div></div></div><ClosedChart trade={t} mobile={mob}/></div>)}<div style={{display:"flex",gap:mob?10:20,fontSize:10,color:"#475569",marginTop:isE2?6:0}}><span>📥 {t.enteredAt}</span><span>📤 {t.closedAt}</span></div></div>);})}</div>
-      </div>)}
+      <div style={{ padding: isMobile ? "12px" : "16px 24px" }}>
 
-      <div style={{marginTop:20,padding:"10px",background:"#1e293b40",borderRadius:10,border:"1px solid #1e293b"}}><p style={{fontSize:10,color:"#64748b",margin:0,lineHeight:1.6}}>⚠️ <strong style={{color:"#94a3b8"}}>Disclaimer:</strong> Paper trading uses simulated money. Signals use Kraken OHLC analysis. Not financial advice.</p></div>
-      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>
+        {/* ═══════════════════ DASHBOARD ═══════════════════ */}
+        {dataLoaded && page === "dashboard" && (
+          <>
+            {/* ─── Account Panel ─── */}
+            <div style={{ ...panelStyle, padding: isMobile ? 12 : 16, marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: t.accent }}>Paper Account</span>
+                  <span style={{ fontSize: 9, color: t.green, fontFamily: monoFont }}>● Saved</span>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => setShowPositionPanel(!showPositionPanel)} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 5, padding: "2px 8px", fontSize: 11, color: t.textDim, cursor: "pointer" }}>{showPositionPanel ? "−" : "+"}</button>
+                  <button onClick={() => { setBalance(5000); setOpenTrades([]); setClosedTrades([]); storageDelete("pts"); }} style={{ background: t.redDim, border: `1px solid ${t.red}30`, borderRadius: 5, padding: "2px 8px", fontSize: 10, color: t.red, cursor: "pointer" }}>Reset</button>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5, 1fr)", gap: 8 }}>
+                {[
+                  { label: "CASH", value: editingBalance ? null : `$${balance.toFixed(2)}`, color: t.text, editable: true },
+                  { label: "EQUITY", value: `$${totalEquity.toFixed(2)}`, color: t.text },
+                  { label: "OPEN P&L", value: `${openPnl >= 0 ? "+" : ""}$${formatPrice(openPnl)}`, color: openPnl >= 0 ? t.green : t.red },
+                  { label: "REALIZED", value: `${closedPnl >= 0 ? "+" : ""}$${formatPrice(closedPnl)}`, color: closedPnl >= 0 ? t.green : t.red },
+                  { label: "WIN RATE", value: closedTrades.length > 0 ? `${((winCount / closedTrades.length) * 100).toFixed(0)}%` : "—", color: t.text, sub: `${winCount}/${closedTrades.length}` },
+                ].map((stat, i) => (
+                  <div key={i} style={{ background: t.bg, borderRadius: 8, padding: "8px 10px" }}>
+                    <div style={{ fontSize: 9, color: t.textDim, marginBottom: 3, fontFamily: monoFont, letterSpacing: 0.5 }}>{stat.label}</div>
+                    {stat.editable && editingBalance ? (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <input value={balanceText} onChange={(e) => setBalanceText(e.target.value)} style={{ background: t.surfaceAlt, border: `1px solid ${t.accent}`, borderRadius: 5, padding: "2px 6px", fontSize: 14, color: t.text, width: 80, outline: "none", fontFamily: monoFont }} />
+                        <button onClick={() => { const v = parseFloat(balanceText); if (!isNaN(v) && v >= 0) { setBalance(v); setEditingBalance(false); } }} style={{ background: t.green, color: "#fff", border: "none", borderRadius: 4, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}>✓</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: stat.color, fontFamily: monoFont }}>{stat.value}</span>
+                        {stat.editable && <button onClick={() => { setBalanceText(balance.toFixed(0)); setEditingBalance(true); }} style={{ background: "none", border: "none", fontSize: 11, cursor: "pointer", color: t.textDim }}>✎</button>}
+                        {stat.sub && <span style={{ fontSize: 10, color: t.textDim, fontFamily: monoFont }}>{stat.sub}</span>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Open positions in account panel */}
+              {showPositionPanel && openTrades.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 10, color: t.textDim, marginBottom: 6, fontFamily: monoFont }}>OPEN POSITIONS ({openTrades.length})</div>
+                  {openTrades.map((trade) => {
+                    const cp = mergedPrices[trade.coinId]?.price || trade.entryPrice;
+                    const pnl = trade.coins * cp * (1 - fees.maker / 100) - trade.investAmt - trade.entryFee;
+                    const isExpanded = expandedTrade === trade.id;
+                    return (
+                      <div key={trade.id} style={{ background: t.bg, borderRadius: 8, padding: 10, marginBottom: 4, border: `1px solid ${pnl >= 0 ? t.green : t.red}15` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setExpandedTrade(isExpanded ? null : trade.id)}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: t.text }}>{trade.symbol}</span>
+                            <span style={{ fontSize: 10, color: t.textDim, fontFamily: monoFont }}>{trade.type} · ${trade.investAmt} · {trade.enteredAt}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: pnl >= 0 ? t.green : t.red, fontFamily: monoFont }}>{pnl >= 0 ? "+" : ""}${formatPrice(pnl)}</span>
+                            <button onClick={(e) => { e.stopPropagation(); closeTrade(trade.id, "Manual"); }} style={{ background: t.redDim, border: `1px solid ${t.red}30`, borderRadius: 5, padding: "3px 8px", fontSize: 10, color: t.red, cursor: "pointer", fontWeight: 600 }}>Close</button>
+                            <button onClick={(e) => { e.stopPropagation(); if (editingTradeId === trade.id) { setEditingTradeId(null); } else { setEditingTradeId(trade.id); setEditTP(trade.targetPrice.toString()); setEditSL(trade.stopPrice.toString()); } }} style={{ background: t.accentDim, border: `1px solid ${t.accent}30`, borderRadius: 5, padding: "3px 8px", fontSize: 10, color: t.accent, cursor: "pointer" }}>{editingTradeId === trade.id ? "Cancel" : "TP/SL"}</button>
+                          </div>
+                        </div>
+                        {editingTradeId === trade.id && (
+                          <div style={{ background: t.surfaceAlt, borderRadius: 6, padding: 8, marginTop: 6, display: "flex", gap: 6, alignItems: "flex-end", flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
+                            <div>
+                              <div style={{ fontSize: 9, color: t.green, marginBottom: 2, fontFamily: monoFont }}>TARGET</div>
+                              <input value={editTP} onChange={(e) => setEditTP(e.target.value)} style={{ background: t.bg, border: `1px solid ${t.green}40`, borderRadius: 5, padding: "5px 8px", fontSize: 12, color: t.green, width: 90, outline: "none", fontFamily: monoFont }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: t.red, marginBottom: 2, fontFamily: monoFont }}>STOP</div>
+                              <input value={editSL} onChange={(e) => setEditSL(e.target.value)} style={{ background: t.bg, border: `1px solid ${t.red}40`, borderRadius: 5, padding: "5px 8px", fontSize: 12, color: t.red, width: 90, outline: "none", fontFamily: monoFont }} />
+                            </div>
+                            <button onClick={() => modifyTrade(trade.id)} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 5, padding: "7px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Apply</button>
+                          </div>
+                        )}
+                        {isExpanded && <LiveTradeChart trade={trade} currentPrice={cp} isMobile={isMobile} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ─── Settings Row ─── */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              {/* Risk selector */}
+              <div style={{ ...panelStyle, padding: "8px 12px", flex: isMobile ? "1 1 100%" : 1, display: "flex", gap: 6 }}>
+                {RISK_PROFILES.map((rp, i) => {
+                  const active = riskLevel === i;
+                  return (
+                    <button key={i} onClick={() => setRiskLevel(i)} style={{
+                      flex: 1, background: active ? `${rp.color}15` : "transparent",
+                      border: `1.5px solid ${active ? rp.color : t.border}`, borderRadius: 8,
+                      padding: "6px 4px", cursor: "pointer", textAlign: "center", transition: "all 0.2s",
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: active ? rp.color : t.textMuted }}>{rp.label}</div>
+                      <div style={{ fontSize: 8, color: t.textDim, fontFamily: monoFont }}>{rp.targetMul}x/{rp.stopMul}x</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Fee tier + Sources */}
+              <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+                <div style={{ ...panelStyle, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, color: t.yellow, fontWeight: 700, fontFamily: monoFont }}>Fee</span>
+                  <span style={{ fontSize: 10, color: t.textMuted, fontFamily: monoFont }}>{fees.maker}%/{fees.taker}%</span>
+                  <button onClick={() => setShowFeeSelector(!showFeeSelector)} style={{ background: t.yellowDim, border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 9, color: t.yellow, cursor: "pointer" }}>{showFeeSelector ? "×" : "Edit"}</button>
+                </div>
+                <div style={{ ...panelStyle, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 10, color: t.textDim, fontFamily: monoFont }}>SRC</span>
+                  <span style={{ fontSize: 10, color: liveSourceCount >= 4 ? t.green : t.yellow, fontWeight: 600, fontFamily: monoFont }}>{liveSourceCount}/6</span>
+                  <button onClick={() => setShowSources(!showSources)} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 4, padding: "2px 6px", fontSize: 9, color: t.textDim, cursor: "pointer" }}>{showSources ? "−" : "+"}</button>
+                </div>
+              </div>
+            </div>
+
+            {showFeeSelector && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 10 }}>
+                {FEE_TIERS.map((tier, i) => (
+                  <button key={i} onClick={() => { setFeeTier(i); setShowFeeSelector(false); }} style={{
+                    ...panelStyle, padding: "8px 10px", cursor: "pointer", textAlign: "left",
+                    borderColor: feeTier === i ? t.yellow : t.border, background: feeTier === i ? t.yellowDim : t.surface,
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: feeTier === i ? t.yellow : t.textMuted }}>{tier.label}</div>
+                    <div style={{ fontSize: 9, color: t.textDim, fontFamily: monoFont }}>{tier.maker}% / {tier.taker}%</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {showSources && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", ...panelStyle, padding: 10, marginBottom: 10 }}>
+                <StatusDot status={sourceStatus.ws} label="Kraken WS" />
+                <StatusDot status={sourceStatus.oh} label="OHLC" />
+                <StatusDot status={sourceStatus.bn} label="Binance" />
+                <StatusDot status={sourceStatus.cg} label="CoinGecko" />
+                <StatusDot status={sourceStatus.cc} label="CryptoCompare" />
+                <StatusDot status={sourceStatus.fg} label="Fear&Greed" />
+              </div>
+            )}
+
+            {usingFallback && (
+              <div style={{ background: t.yellowDim, border: `1px solid ${t.yellow}40`, borderRadius: 8, padding: "8px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 11, color: t.yellow, flex: 1 }}>⚠ Using sample data — live feeds unavailable</span>
+                <button onClick={fetchAllPrices} style={{ background: t.yellow, color: "#000", border: "none", borderRadius: 5, padding: "4px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Retry</button>
+              </div>
+            )}
+
+            {hasPriceData && (
+              <>
+                {/* ─── Market Overview ─── */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  <div style={{ ...panelStyle, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 9, color: t.textDim, marginBottom: 3, fontFamily: monoFont, letterSpacing: 0.5 }}>MKT CAP</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: t.text, fontFamily: monoFont }}>${globalData ? (globalData.total_market_cap.usd / 1e12).toFixed(2) : "2.84"}T</div>
+                  </div>
+                  <div style={{ ...panelStyle, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 9, color: t.textDim, marginBottom: 3, fontFamily: monoFont, letterSpacing: 0.5 }}>24H VOL</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: t.text, fontFamily: monoFont }}>${globalData ? (globalData.total_volume.usd / 1e9).toFixed(1) : "98.2"}B</div>
+                  </div>
+                  <div style={{ ...panelStyle, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 9, color: t.textDim, marginBottom: 3, fontFamily: monoFont, letterSpacing: 0.5 }}>FEAR & GREED</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: t.text, fontFamily: monoFont }}>{fgData.value || "—"}</div>
+                    {fgData.label && <div style={{ fontSize: 10, color: fgColor, fontWeight: 600 }}>{fgData.label}</div>}
+                  </div>
+                </div>
+
+                {/* ─── Coin Watchlist + Chart ─── */}
+                <div style={{ display: isMobile ? "block" : "grid", gridTemplateColumns: "240px 1fr", gap: 10, marginBottom: 14 }}>
+                  {/* Watchlist */}
+                  <div style={{ ...panelStyle, padding: 0, overflow: "hidden", marginBottom: isMobile ? 10 : 0 }}>
+                    <div style={{ padding: "10px 12px", borderBottom: `1px solid ${t.border}` }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: 0.5 }}>WATCHLIST</span>
+                    </div>
+                    <div style={{ maxHeight: isMobile ? 200 : 400, overflowY: "auto", overflowX: isMobile ? "auto" : "hidden", display: isMobile ? "flex" : "block", gap: isMobile ? 0 : undefined }}>
+                      {COINS.map((coin) => {
+                        const data = mergedPrices[coin.id];
+                        if (!data?.price) return null;
+                        const change = data.change24h || 0;
+                        const changeColor = change >= 0 ? t.green : t.red;
+                        const isSelected = selectedCoin.id === coin.id;
+                        return (
+                          <div key={coin.id} onClick={() => setSelectedCoin(coin)} style={{
+                            padding: isMobile ? "8px 12px" : "8px 12px",
+                            minWidth: isMobile ? 140 : undefined,
+                            cursor: "pointer", borderBottom: isMobile ? "none" : `1px solid ${t.border}10`,
+                            background: isSelected ? `${t.accent}10` : "transparent",
+                            borderLeft: isSelected ? `2px solid ${t.accent}` : "2px solid transparent",
+                            transition: "all 0.15s",
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: coin.color }} />
+                                <span style={{ fontWeight: 600, fontSize: 12, color: t.text }}>{coin.symbol}</span>
+                              </div>
+                              <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: changeColor + "15", color: changeColor, fontWeight: 600, fontFamily: monoFont }}>
+                                {change >= 0 ? "+" : ""}{change.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: t.text, fontFamily: monoFont }}>
+                                ${data.price < 1 ? data.price.toFixed(4) : data.price < 100 ? data.price.toFixed(2) : formatPrice(data.price)}
+                              </span>
+                              <Sparkline data={data.sparkline} color={changeColor} width={50} height={18} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* OHLC Chart */}
+                  <OHLCChart candles={ohlcData[selectedCoin.id]} coin={selectedCoin} currentPrice={selectedCoinData?.price} isMobile={isMobile} />
+                </div>
+
+                {/* ─── Trade Signals ─── */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <h2 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, margin: 0, color: t.text }}>Trade Signals</h2>
+                      <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: t.yellowDim, color: t.yellow, fontWeight: 700, fontFamily: monoFont, letterSpacing: 0.5 }}>BETA</span>
+                      <span style={{ fontSize: 11, color: t.textDim }}>({filteredSignals.length})</span>
+                    </div>
+                    {editingAmounts ? (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <input value={amountsText} onChange={(e) => setAmountsText(e.target.value)} style={{ background: t.bg, border: `1px solid ${t.accent}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, color: t.text, width: 100, outline: "none", fontFamily: monoFont }} />
+                        <button onClick={saveAmounts} style={{ background: t.green, color: "#fff", border: "none", borderRadius: 5, padding: "4px 8px", fontSize: 11, cursor: "pointer" }}>✓</button>
+                        <button onClick={() => setEditingAmounts(false)} style={{ background: t.surfaceAlt, color: t.textMuted, border: "none", borderRadius: 5, padding: "4px 8px", fontSize: 11, cursor: "pointer" }}>×</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setAmountsText(tradeAmounts.join(", ")); setEditingAmounts(true); }} style={{ background: t.surfaceAlt, color: t.textMuted, border: `1px solid ${t.border}`, borderRadius: 6, padding: "4px 10px", fontSize: 10, cursor: "pointer", fontFamily: monoFont }}>
+                        ✎ {tradeAmounts.map((a) => `$${a}`).join(", ")}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Signal type filter */}
+                  <div style={{ display: "flex", gap: 4, overflowX: "auto", marginBottom: 10, WebkitOverflowScrolling: "touch" }}>
+                    {signalTypes.map((type) => (
+                      <button key={type} onClick={() => setSignalFilter(type)} style={{
+                        background: signalFilter === type ? t.accent : t.surfaceAlt,
+                        color: signalFilter === type ? "#fff" : t.textMuted,
+                        border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 11,
+                        fontWeight: 600, cursor: "pointer", textTransform: "capitalize", whiteSpace: "nowrap",
+                        transition: "all 0.15s",
+                      }}>
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Signal cards */}
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {filteredSignals.map((signal, i) => (
+                      <div key={i} style={{ ...panelStyle, padding: isMobile ? 12 : 16, position: "relative" }}>
+                        {i === 0 && (
+                          <div style={{
+                            position: "absolute", top: -1, right: 16,
+                            background: `linear-gradient(135deg, ${t.yellow}, #ff9800)`, color: "#000",
+                            fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 6px 6px",
+                            fontFamily: monoFont, letterSpacing: 0.5,
+                          }}>TOP</div>
+                        )}
+
+                        {/* Signal header */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                          <span style={{ fontWeight: 700, fontSize: isMobile ? 15 : 17, color: t.text }}>{signal.symbol}</span>
+                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: signal.typeColor + "18", color: signal.typeColor, fontWeight: 600 }}>{signal.type}</span>
+                          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, background: t.greenDim, color: t.green, fontWeight: 600, fontFamily: monoFont }}>+{signal.profitPct.toFixed(1)}%</span>
+                          {signal.trend && (
+                            <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: signal.trend === "up" ? t.greenDim : t.redDim, color: signal.trend === "up" ? t.green : t.red, fontFamily: monoFont }}>
+                              {signal.trend === "up" ? "▲" : "▼"}
+                            </span>
+                          )}
+                        </div>
+
+                        <p style={{ fontSize: isMobile ? 11 : 12, color: t.textMuted, lineHeight: 1.5, margin: "0 0 10px" }}>{signal.desc}</p>
+
+                        {/* Technical indicators */}
+                        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                          {signal.rsi != null && (
+                            <span style={{ background: t.bg, borderRadius: 5, padding: "3px 8px", fontSize: 10, fontFamily: monoFont }}>
+                              <span style={{ color: t.textDim }}>RSI </span>
+                              <span style={{ color: signal.rsi > 70 ? t.red : signal.rsi < 30 ? t.green : t.yellow, fontWeight: 600 }}>{signal.rsi.toFixed(0)}</span>
+                            </span>
+                          )}
+                          {signal.atrPct != null && (
+                            <span style={{ background: t.bg, borderRadius: 5, padding: "3px 8px", fontSize: 10, fontFamily: monoFont }}>
+                              <span style={{ color: t.textDim }}>VOL </span>
+                              <span style={{ color: t.accent, fontWeight: 600 }}>{signal.atrPct.toFixed(1)}%</span>
+                            </span>
+                          )}
+                          {signal.supportLevel != null && (
+                            <span style={{ background: t.bg, borderRadius: 5, padding: "3px 8px", fontSize: 10, fontFamily: monoFont }}>
+                              <span style={{ color: t.textDim }}>S: </span>
+                              <span style={{ color: "#26c6da", fontWeight: 600 }}>${formatPrice(signal.supportLevel)}</span>
+                            </span>
+                          )}
+                          {signal.resistanceLevel != null && (
+                            <span style={{ background: t.bg, borderRadius: 5, padding: "3px 8px", fontSize: 10, fontFamily: monoFont }}>
+                              <span style={{ color: t.textDim }}>R: </span>
+                              <span style={{ color: t.yellow, fontWeight: 600 }}>${formatPrice(signal.resistanceLevel)}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Entry/Target/Stop/RR grid */}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 6, marginBottom: 10 }}>
+                          {[
+                            { label: "ENTRY", value: `$${formatPrice(signal.entryLow)}–${formatPrice(signal.entryHigh)}`, color: t.accent },
+                            { label: "TARGET", value: `$${formatPrice(signal.targetLow)}–${formatPrice(signal.targetHigh)}`, color: t.green },
+                            { label: "STOP", value: `$${formatPrice(signal.stop)}`, color: t.red },
+                            { label: "R/R", value: signal.rr, color: t.yellow },
+                          ].map((item, j) => (
+                            <div key={j} style={{ background: t.bg, borderRadius: 6, padding: "7px 10px" }}>
+                              <div style={{ fontSize: 9, color: t.textDim, marginBottom: 2, fontFamily: monoFont, letterSpacing: 0.5 }}>{item.label}</div>
+                              <div style={{ fontSize: isMobile ? 11 : 13, fontWeight: 600, color: item.color, wordBreak: "break-all", fontFamily: monoFont }}>{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Confidence */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4, fontFamily: monoFont, letterSpacing: 0.5 }}>CONFIDENCE</div>
+                          <ConfidenceBar value={signal.confidence} />
+                        </div>
+
+                        {/* Trade buttons */}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "10px 0 0", borderTop: `1px solid ${t.border}` }}>
+                          <span style={{ fontSize: 10, color: t.accent, fontWeight: 600, alignSelf: "center", fontFamily: monoFont }}>PAPER:</span>
+                          {tradeAmounts.map((amount) => {
+                            const canAfford = amount + amount * (fees.taker / 100) <= balance;
+                            return (
+                              <button key={amount} onClick={() => enterTrade(signal, amount)} disabled={!canAfford} style={{
+                                background: canAfford ? t.accentDim : t.surfaceAlt,
+                                border: `1px solid ${canAfford ? t.accent : t.border}`,
+                                borderRadius: 6, padding: isMobile ? "8px 14px" : "8px 18px",
+                                fontSize: 12, fontWeight: 700, cursor: canAfford ? "pointer" : "not-allowed",
+                                color: canAfford ? t.text : t.textDim, fontFamily: monoFont,
+                                transition: "all 0.15s",
+                              }}>
+                                ${amount}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Trade examples table (desktop only) */}
+                        {!isMobile && (
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ fontSize: 10, color: t.textDim, marginBottom: 4, fontFamily: monoFont }}>
+                              EXAMPLES <span style={{ color: t.yellow, fontWeight: 700 }}>· {fees.taker}%/{fees.maker}%</span>
+                            </div>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: monoFont }}>
+                              <thead>
+                                <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                                  {["$", "Coins", "+Profit", "P%", "-Loss", "L%"].map((h, j) => (
+                                    <th key={j} style={{ padding: "4px 6px", textAlign: "left", color: t.textDim, fontSize: 9, fontWeight: 600 }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {tradeAmounts.map((amount, j) => {
+                                  const ep = (signal.entryLow + signal.entryHigh) / 2;
+                                  const tp = (signal.targetLow + signal.targetHigh) / 2;
+                                  const coins = amount / ep;
+                                  const profit = coins * tp * (1 - fees.maker / 100) - amount * (1 + fees.taker / 100) + amount;
+                                  const loss = coins * signal.stop * (1 - fees.maker / 100) - amount * (1 + fees.taker / 100) + amount;
+                                  return (
+                                    <tr key={j}>
+                                      <td style={{ padding: "5px 6px", fontWeight: 600, color: t.text }}>${amount}</td>
+                                      <td style={{ padding: "5px 6px", color: t.textMuted }}>{formatPrice(coins)}</td>
+                                      <td style={{ padding: "5px 6px", color: t.green, fontWeight: 600 }}>+${formatPrice(profit)}</td>
+                                      <td style={{ padding: "5px 6px", color: t.green }}>{(profit / amount * 100).toFixed(1)}%</td>
+                                      <td style={{ padding: "5px 6px", color: t.red, fontWeight: 600 }}>${formatPrice(Math.abs(loss))}</td>
+                                      <td style={{ padding: "5px 6px", color: t.red }}>{(loss / amount * 100).toFixed(1)}%</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {!hasPriceData && (
+              <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>◌</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Connecting to markets...</div>
+                <div style={{ fontSize: 11, color: t.textDim, marginTop: 4 }}>Fetching live data from multiple sources</div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══════════════════ TRADE LOG ═══════════════════ */}
+        {dataLoaded && page === "log" && (
+          <div>
+            {/* Stats grid */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(6, 1fr)", gap: 8, marginBottom: 14 }}>
+              {[
+                { label: "TRADES", value: closedTrades.length, color: t.text },
+                { label: "WINS", value: winCount, color: t.green },
+                { label: "LOSSES", value: closedTrades.length - winCount, color: t.red },
+                { label: "WIN %", value: closedTrades.length > 0 ? `${((winCount / closedTrades.length) * 100).toFixed(0)}%` : "—", color: t.yellow },
+                { label: "TOTAL P&L", value: `${closedPnl >= 0 ? "+" : ""}$${formatPrice(closedPnl)}`, color: closedPnl >= 0 ? t.green : t.red },
+                { label: "AVG", value: closedTrades.length > 0 ? `${closedPnl / closedTrades.length >= 0 ? "+" : ""}$${formatPrice(closedPnl / closedTrades.length)}` : "—", color: closedPnl >= 0 ? t.green : t.red },
+              ].map((stat, i) => (
+                <div key={i} style={{ ...panelStyle, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 9, color: t.textDim, marginBottom: 3, fontFamily: monoFont, letterSpacing: 0.5 }}>{stat.label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: stat.color, fontFamily: monoFont }}>{stat.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <EquityCurve closedTrades={closedTrades} isMobile={isMobile} />
+
+            {/* Open trades */}
+            {openTrades.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: t.text, margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: t.green }}>●</span> Open Positions ({openTrades.length})
+                </h3>
+                {openTrades.map((trade) => {
+                  const cp = mergedPrices[trade.coinId]?.price || trade.entryPrice;
+                  const pnl = trade.coins * cp * (1 - fees.maker / 100) - trade.investAmt - trade.entryFee;
+                  const pnlPct = (pnl / trade.investAmt) * 100;
+                  const isExpanded = expandedTrade === trade.id;
+                  return (
+                    <div key={trade.id} style={{ ...panelStyle, padding: "12px 14px", marginBottom: 6, borderColor: pnl >= 0 ? `${t.green}25` : `${t.red}25` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8, cursor: "pointer" }} onClick={() => setExpandedTrade(isExpanded ? null : trade.id)}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: t.text }}>{trade.symbol}</span>
+                            <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, background: "#26c6da18", color: "#26c6da", fontWeight: 600 }}>{trade.type}</span>
+                            {trade.riskLabel && <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: t.surfaceAlt, color: t.textDim }}>{trade.riskLabel}</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: t.textDim, fontFamily: monoFont }}>{trade.enteredAt}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: pnl >= 0 ? t.green : t.red, fontFamily: monoFont }}>{pnl >= 0 ? "+" : ""}${formatPrice(pnl)}</div>
+                          <div style={{ fontSize: 10, color: pnl >= 0 ? t.green : t.red, fontFamily: monoFont }}>{pnlPct.toFixed(1)}%</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, fontSize: 10, fontFamily: monoFont }}>
+                        <div><span style={{ color: t.textDim }}>Invest: </span><span style={{ color: t.text, fontWeight: 600 }}>${trade.investAmt}</span></div>
+                        <div><span style={{ color: t.textDim }}>Entry: </span><span style={{ color: t.accent, fontWeight: 600 }}>${formatPrice(trade.entryPrice)}</span></div>
+                        <div><span style={{ color: t.textDim }}>TP: </span><span style={{ color: t.green, fontWeight: 600 }}>${formatPrice(trade.targetPrice)}</span></div>
+                        <div><span style={{ color: t.textDim }}>SL: </span><span style={{ color: t.red, fontWeight: 600 }}>${formatPrice(trade.stopPrice)}</span></div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        <button onClick={(e) => { e.stopPropagation(); closeTrade(trade.id, "Manual"); }} style={{ background: t.redDim, border: `1px solid ${t.red}30`, borderRadius: 5, padding: "5px 12px", fontSize: 11, color: t.red, cursor: "pointer", fontWeight: 600 }}>Close</button>
+                        <button onClick={() => setExpandedTrade(isExpanded ? null : trade.id)} style={{ background: t.surfaceAlt, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 12px", fontSize: 11, color: t.textMuted, cursor: "pointer" }}>{isExpanded ? "Hide" : "Chart"}</button>
+                        <button onClick={(e) => { e.stopPropagation(); if (editingTradeId === trade.id) { setEditingTradeId(null); } else { setEditingTradeId(trade.id); setEditTP(trade.targetPrice.toString()); setEditSL(trade.stopPrice.toString()); } }} style={{ background: t.accentDim, border: `1px solid ${t.accent}30`, borderRadius: 5, padding: "5px 12px", fontSize: 11, color: t.accent, cursor: "pointer" }}>{editingTradeId === trade.id ? "Cancel" : "Modify TP/SL"}</button>
+                      </div>
+
+                      {editingTradeId === trade.id && (
+                        <div style={{ background: t.bg, borderRadius: 6, padding: 10, marginTop: 8, display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
+                          <div>
+                            <div style={{ fontSize: 9, color: t.green, marginBottom: 3, fontFamily: monoFont }}>TARGET</div>
+                            <input value={editTP} onChange={(e) => setEditTP(e.target.value)} style={{ background: t.surfaceAlt, border: `1px solid ${t.green}40`, borderRadius: 5, padding: "6px 10px", fontSize: 13, color: t.green, width: 100, outline: "none", fontFamily: monoFont }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: t.red, marginBottom: 3, fontFamily: monoFont }}>STOP</div>
+                            <input value={editSL} onChange={(e) => setEditSL(e.target.value)} style={{ background: t.surfaceAlt, border: `1px solid ${t.red}40`, borderRadius: 5, padding: "6px 10px", fontSize: 13, color: t.red, width: 100, outline: "none", fontFamily: monoFont }} />
+                          </div>
+                          <button onClick={() => modifyTrade(trade.id)} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 5, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Apply</button>
+                        </div>
+                      )}
+                      {isExpanded && <LiveTradeChart trade={trade} currentPrice={cp} isMobile={isMobile} />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Closed trades */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: t.text, margin: 0 }}>History ({closedTrades.length})</h3>
+              <div style={{ display: "flex", gap: 4 }}>
+                {["all", "wins", "losses"].map((f) => (
+                  <button key={f} onClick={() => setLogFilter(f)} style={{
+                    background: logFilter === f ? t.accent : t.surfaceAlt,
+                    color: logFilter === f ? "#fff" : t.textDim,
+                    border: "none", borderRadius: 5, padding: "5px 12px", fontSize: 11,
+                    fontWeight: 600, cursor: "pointer", textTransform: "capitalize",
+                  }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {closedTrades.length === 0 && (
+              <div style={{ textAlign: "center", padding: 40, color: t.textDim }}>
+                <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.4 }}>◌</div>
+                <div style={{ fontSize: 13 }}>No trades yet — open your first position from the dashboard</div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {closedTrades.slice().reverse()
+                .filter((t) => logFilter === "wins" ? t.pnl > 0 : logFilter === "losses" ? t.pnl <= 0 : true)
+                .map((trade, i) => {
+                  const isWin = trade.pnl > 0;
+                  const isExpanded = expandedClosed === i;
+                  const color = isWin ? t.green : t.red;
+                  return (
+                    <div key={i} style={{ ...panelStyle, padding: isMobile ? 12 : 14, cursor: "pointer", borderColor: `${color}15` }} onClick={() => setExpandedClosed(isExpanded ? null : i)}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{trade.symbol}</span>
+                            <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, background: `${color}18`, color, fontWeight: 600 }}>{trade.type}</span>
+                            <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 5, background: `${color}12`, color, fontWeight: 700 }}>{trade.reason}</span>
+                            {trade.riskLabel && <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: t.surfaceAlt, color: t.textDim }}>{trade.riskLabel}</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: t.textDim, fontFamily: monoFont }}>
+                            {trade.rr && <span>R/R:{trade.rr} · </span>}
+                            {trade.duration && <span>{trade.duration}</span>}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: monoFont }}>{trade.pnl >= 0 ? "+" : ""}${formatPrice(trade.pnl)}</div>
+                          <div style={{ fontSize: 12, color, fontFamily: monoFont }}>{trade.pnlPct >= 0 ? "+" : ""}{trade.pnlPct.toFixed(1)}%</div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 6, marginBottom: 8 }}>
+                            {[
+                              { label: "INVESTED", value: `$${trade.investAmt}` },
+                              { label: "ENTRY → EXIT", value: `$${formatPrice(trade.entryPrice)} → $${formatPrice(trade.exitPrice)}` },
+                              { label: "FEES", value: `$${formatPrice(trade.entryFee + (trade.exitFee || 0))}`, color: t.yellow },
+                              { label: "COINS", value: formatPrice(trade.coins) },
+                            ].map((item, j) => (
+                              <div key={j} style={{ background: t.bg, borderRadius: 6, padding: "8px 10px" }}>
+                                <div style={{ fontSize: 9, color: t.textDim, fontFamily: monoFont }}>{item.label}</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: item.color || t.text, fontFamily: monoFont }}>{item.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <ClosedTradeChart trade={trade} isMobile={isMobile} />
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", gap: isMobile ? 12 : 20, fontSize: 10, color: t.textDim, marginTop: isExpanded ? 8 : 0, fontFamily: monoFont }}>
+                        <span>↓ {trade.enteredAt}</span>
+                        <span>↑ {trade.closedAt}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {!dataLoaded && (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <span style={{ color: t.textDim }}>Loading...</span>
+          </div>
+        )}
+
+        {/* ─── Disclaimer ─── */}
+        <div style={{ marginTop: 24, padding: 12, background: `${t.surfaceAlt}60`, borderRadius: 8, border: `1px solid ${t.border}` }}>
+          <p style={{ fontSize: 10, color: t.textDim, margin: 0, lineHeight: 1.6 }}>
+            <strong style={{ color: t.textMuted }}>Disclaimer:</strong> Paper trading with simulated funds. Signals generated from Kraken OHLC technical analysis. Not financial advice. Cryptocurrency involves significant risk of loss.
+          </p>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #262838; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #363850; }
+        button { transition: opacity 0.15s; }
+        button:hover { opacity: 0.85; }
+        input { font-family: 'JetBrains Mono', monospace; }
+      `}</style>
     </div>
   );
 }
