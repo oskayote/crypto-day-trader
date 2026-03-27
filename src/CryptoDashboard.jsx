@@ -47,6 +47,89 @@ function mkSig(coin,md,type,desc,eL,eH,tL,tH,stop,conf,an,rk){const tm=rk?.tm||1
 
 function genSigs(coin,md,an,rk){const s=[],p2=md.price,ch=md.change24h||0;if(!an){const a=p2*.012;s.push(mkSig(coin,md,"Scalp",`${coin.symbol} scalp`,p2-a*.3,p2,p2+a*1.8,p2+a*2.2,p2-a*1.2,55,null,rk));return s;}const{atr,sup,res,vP,mom,rsi,trend}=an;if(vP>.3){let c=60;if(mom>.5)c+=8;if(rsi<60)c+=5;if(md.spread!=null&&md.spread<.05)c+=5;s.push(mkSig(coin,md,"Scalp",`${coin.symbol} scalp — vol ${vP.toFixed(1)}%`,p2-atr*.4,p2,p2+atr*1.5,p2+atr*2,p2-atr*1.2,c,an,rk));}if(trend==="up"||mom>.3){let c=55;if(trend==="up")c+=10;if(rsi<65)c+=5;if(ch>2)c+=5;s.push(mkSig(coin,md,"Long",`${coin.symbol} long — ${trend} trend`,p2-atr*.5,p2+atr*.1,p2+atr*3,p2+atr*4,p2-atr*1.8,c,an,rk));}if(((res-p2)/p2)*100<2&&mom>0){let c=58;if(vP>.5)c+=6;s.push(mkSig(coin,md,"Breakout",`${coin.symbol} breakout near $${fmt(res)}`,res*.998,res*1.005,res+atr*2.5,res+atr*3.5,res-atr*1.2,c,an,rk));}if(rsi<40||ch<-2){let c=52;if(rsi<30)c+=10;if(((p2-sup)/p2)*100<1.5)c+=8;s.push(mkSig(coin,md,"Dip Buy",`${coin.symbol} dip — RSI ${rsi.toFixed(0)} near $${fmt(sup)}`,sup*.997,sup*1.005,sup+atr*2.5,sup+atr*3.5,sup-atr*1.5,c,an,rk));}if(mom>1&&vP>.4){let c=62;if(ch>3)c+=8;if(trend==="up")c+=6;s.push(mkSig(coin,md,"Momentum",`${coin.symbol} momentum +${mom.toFixed(1)}%`,p2-atr*.2,p2+atr*.1,p2+atr*2,p2+atr*3,p2-atr*1.5,c,an,rk));}if(rsi<30&&trend==="down"&&ch<-3){let c=45;if(rsi<25)c+=8;s.push(mkSig(coin,md,"Reversal",`${coin.symbol} reversal RSI ${rsi.toFixed(0)}`,p2-atr*.3,p2+atr*.1,p2+atr*3,p2+atr*4.5,p2-atr*2,c,an,rk));}if(s.length===0)s.push(mkSig(coin,md,"Scalp",`${coin.symbol} range scalp`,p2-atr*.5,p2,p2+atr*2,p2+atr*2.8,p2-atr*1.3,50,an,rk));return s;}
 
+/* ═══ ANALYSIS ENGINE — computes performance stats + calibration factors ═══ */
+function computeTradeAnalysis(closedTrades) {
+  if (!closedTrades.length) return { byType: {}, byCoin: {}, byTrend: {}, byRsi: {}, byVol: {}, calibration: {}, insights: [] };
+  const group = (arr, keyFn) => {
+    const g = {};
+    arr.forEach(t => { const k = keyFn(t); if (!g[k]) g[k] = { wins: 0, losses: 0, totalPnl: 0, trades: [] }; g[k].trades.push(t); if (t.pnl > 0) g[k].wins++; else g[k].losses++; g[k].totalPnl += t.pnl; });
+    Object.keys(g).forEach(k => { const d = g[k]; d.total = d.wins + d.losses; d.winRate = d.total > 0 ? (d.wins / d.total) * 100 : 0; d.avgPnl = d.total > 0 ? d.totalPnl / d.total : 0; });
+    return g;
+  };
+  const byType = group(closedTrades, t => t.type || "Unknown");
+  const byCoin = group(closedTrades, t => t.symbol || "Unknown");
+  const byTrend = group(closedTrades.filter(t => t.entryTrend), t => t.entryTrend);
+  const byRsi = group(closedTrades.filter(t => t.entryRsi != null), t => t.entryRsi < 30 ? "Oversold (<30)" : t.entryRsi > 70 ? "Overbought (>70)" : "Neutral (30-70)");
+  const byVol = group(closedTrades.filter(t => t.entryVol != null), t => t.entryVol < 0.5 ? "Low (<0.5%)" : t.entryVol > 1.5 ? "High (>1.5%)" : "Medium (0.5-1.5%)");
+
+  // Calibration: type+coin combo adjustment factors
+  const calibration = {};
+  Object.keys(byType).forEach(type => {
+    const d = byType[type];
+    if (d.total >= 3) { // need at least 3 trades for meaningful calibration
+      const baseWR = 50; // assume 50% is neutral
+      calibration[type] = { factor: Math.max(0.5, Math.min(1.5, d.winRate / baseWR)), winRate: d.winRate, total: d.total, avgPnl: d.avgPnl };
+    }
+  });
+  // Coin-level calibration
+  Object.keys(byCoin).forEach(coin => {
+    const d = byCoin[coin];
+    if (d.total >= 3) {
+      calibration[`coin:${coin}`] = { factor: Math.max(0.7, Math.min(1.3, d.winRate / 50)), winRate: d.winRate, total: d.total };
+    }
+  });
+
+  // Generate insights
+  const insights = [];
+  const totalWR = closedTrades.length > 0 ? (closedTrades.filter(t => t.pnl > 0).length / closedTrades.length) * 100 : 0;
+
+  // Best/worst type
+  const typeEntries = Object.entries(byType).filter(([_, d]) => d.total >= 2).sort((a, b) => b[1].winRate - a[1].winRate);
+  if (typeEntries.length >= 2) {
+    const best = typeEntries[0], worst = typeEntries[typeEntries.length - 1];
+    insights.push({ type: "positive", text: `${best[0]} signals have your highest win rate at ${best[1].winRate.toFixed(0)}% across ${best[1].total} trades` });
+    if (worst[1].winRate < 40) insights.push({ type: "negative", text: `${worst[0]} signals underperform at ${worst[1].winRate.toFixed(0)}% — consider avoiding or reducing size` });
+  }
+
+  // RSI insights
+  const rsiEntries = Object.entries(byRsi).filter(([_, d]) => d.total >= 2);
+  rsiEntries.forEach(([range, d]) => {
+    if (d.winRate > 65) insights.push({ type: "positive", text: `Entries during ${range} RSI win ${d.winRate.toFixed(0)}% of the time` });
+    if (d.winRate < 35) insights.push({ type: "negative", text: `Entries during ${range} RSI only win ${d.winRate.toFixed(0)}% — weak conditions` });
+  });
+
+  // Trend insights
+  const trendEntries = Object.entries(byTrend).filter(([_, d]) => d.total >= 2);
+  trendEntries.forEach(([dir, d]) => {
+    if (d.winRate > 60) insights.push({ type: "positive", text: `Trading with ${dir} trend wins ${d.winRate.toFixed(0)}% — trend alignment helps` });
+    if (d.winRate < 35) insights.push({ type: "negative", text: `Counter-${dir}-trend entries only ${d.winRate.toFixed(0)}% — avoid fighting the trend` });
+  });
+
+  // Coin-level
+  const coinEntries = Object.entries(byCoin).filter(([_, d]) => d.total >= 2).sort((a, b) => b[1].winRate - a[1].winRate);
+  if (coinEntries.length >= 2) {
+    const best = coinEntries[0];
+    if (best[1].winRate > 60) insights.push({ type: "positive", text: `${best[0]} is your most profitable coin at ${best[1].winRate.toFixed(0)}% win rate` });
+  }
+
+  // Duration insight
+  const winDurs = closedTrades.filter(t => t.pnl > 0 && t.enteredMs).map(t => {
+    const closedMs = new Date(t.closedAt).getTime() || 0;
+    return closedMs > t.enteredMs ? closedMs - t.enteredMs : 0;
+  }).filter(d => d > 0);
+  const lossDurs = closedTrades.filter(t => t.pnl <= 0 && t.enteredMs).map(t => {
+    const closedMs = new Date(t.closedAt).getTime() || 0;
+    return closedMs > t.enteredMs ? closedMs - t.enteredMs : 0;
+  }).filter(d => d > 0);
+  if (winDurs.length > 2 && lossDurs.length > 2) {
+    const avgWinDur = winDurs.reduce((a, b) => a + b, 0) / winDurs.length;
+    const avgLossDur = lossDurs.reduce((a, b) => a + b, 0) / lossDurs.length;
+    if (avgLossDur > avgWinDur * 2) insights.push({ type: "neutral", text: `Losses take ${(avgLossDur / avgWinDur).toFixed(1)}x longer than wins — consider tighter stops` });
+  }
+
+  return { byType, byCoin, byTrend, byRsi, byVol, calibration, insights, totalWR };
+}
+
 /* ═══ CANDLESTICK CHART ═══ */
 function CandleChart({candles,coin,currentPrice,overlays,H:propH,compact=false}){const ref=useRef(null);const cW2=useContW(ref);const W=cW2||400,H=propH||(compact?140:280);const pL2=4,pR=compact?42:56,pT=8,pB=12,chartW=W-pL2-pR,chartH=H-pT-pB;if(!candles||candles.length<3)return<div ref={ref} style={{background:P.sf,borderRadius:6,height:H,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${P.bd}`}}><span style={{color:P.td,fontSize:11}}>Loading...</span></div>;const disp=candles.slice(compact?-40:-60);const allH=disp.map(c=>c[2]),allL=disp.map(c=>c[3]);let max=Math.max(...allH),min=Math.min(...allL);if(overlays)overlays.forEach(o=>{if(o.high)max=Math.max(max,o.high);if(o.low)min=Math.min(min,o.low);});const rg=max-min||1;max+=rg*.06;min-=rg*.06;const tr=max-min;const yP=p=>pT+chartH*(1-(p-min)/tr),gap=chartW/disp.length,cw=Math.max(1.5,gap*.55);const fz=compact?6:8;return(<div ref={ref} style={{width:"100%"}}><svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{display:"block",width:"100%",height:"auto"}}>{Array.from({length:compact?4:6},(_,i)=>{const p=min+(tr*(i+1))/(compact?5:7);return<g key={i}><line x1={pL2} y1={yP(p)} x2={pL2+chartW} y2={yP(p)} stroke={P.bd} strokeWidth=".4"/><text x={W-pR+3} y={yP(p)+3} fill={P.td} fontSize={fz} fontFamily={P.mono}>{fmt(p)}</text></g>;})}{overlays&&overlays.map((o,i)=><g key={`ov-${i}`}>{o.entryZone&&<rect x={pL2} y={yP(o.entryZone[1])} width={chartW} height={Math.max(0,yP(o.entryZone[0])-yP(o.entryZone[1]))} fill={P.ac} fillOpacity=".07"/>}{o.targetZone&&<rect x={pL2} y={yP(o.targetZone[1])} width={chartW} height={Math.max(0,yP(o.targetZone[0])-yP(o.targetZone[1]))} fill={P.gn} fillOpacity=".08"/>}{o.stopLine!=null&&<line x1={pL2} y1={yP(o.stopLine)} x2={pL2+chartW} y2={yP(o.stopLine)} stroke={P.rd} strokeWidth="1" strokeDasharray="5,3"/>}{o.entryLine!=null&&<line x1={pL2} y1={yP(o.entryLine)} x2={pL2+chartW} y2={yP(o.entryLine)} stroke={P.ac} strokeWidth=".8" strokeDasharray="4,3"/>}{o.targetLine!=null&&<line x1={pL2} y1={yP(o.targetLine)} x2={pL2+chartW} y2={yP(o.targetLine)} stroke={P.gn} strokeWidth=".8" strokeDasharray="4,3"/>}{o.entryLine!=null&&<><rect x={W-pR+1} y={yP(o.entryLine)-7} width={pR-3} height={14} rx="2" fill={P.ac} fillOpacity=".15"/><text x={W-pR+3} y={yP(o.entryLine)+3} fill={P.ac} fontSize={fz} fontWeight="600" fontFamily={P.mono}>IN {fmt(o.entryLine)}</text></>}{o.targetLine!=null&&<><rect x={W-pR+1} y={yP(o.targetLine)-7} width={pR-3} height={14} rx="2" fill={P.gn} fillOpacity=".15"/><text x={W-pR+3} y={yP(o.targetLine)+3} fill={P.gn} fontSize={fz} fontWeight="600" fontFamily={P.mono}>TP {fmt(o.targetLine)}</text></>}{o.stopLine!=null&&<><rect x={W-pR+1} y={yP(o.stopLine)-7} width={pR-3} height={14} rx="2" fill={P.rd} fillOpacity=".15"/><text x={W-pR+3} y={yP(o.stopLine)+3} fill={P.rd} fontSize={fz} fontWeight="600" fontFamily={P.mono}>SL {fmt(o.stopLine)}</text></>}{!compact&&o.entryZone&&<><rect x={pL2+3} y={yP((o.entryZone[0]+o.entryZone[1])/2)-7} width={44} height={14} rx="3" fill={P.ac} fillOpacity=".85"/><text x={pL2+6} y={yP((o.entryZone[0]+o.entryZone[1])/2)+3} fill="#fff" fontSize="7" fontWeight="700" fontFamily={P.mono}>ENTRY</text></>}{!compact&&o.targetZone&&<><rect x={pL2+3} y={yP((o.targetZone[0]+o.targetZone[1])/2)-7} width={50} height={14} rx="3" fill={P.gn} fillOpacity=".85"/><text x={pL2+6} y={yP((o.targetZone[0]+o.targetZone[1])/2)+3} fill="#fff" fontSize="7" fontWeight="700" fontFamily={P.mono}>TARGET</text></>}{!compact&&o.stopLine!=null&&<><rect x={pL2+3} y={yP(o.stopLine)-7} width={36} height={14} rx="3" fill={P.rd} fillOpacity=".85"/><text x={pL2+6} y={yP(o.stopLine)+3} fill="#fff" fontSize="7" fontWeight="700" fontFamily={P.mono}>STOP</text></>}</g>)}{disp.map((c,i)=>{const o=c[1],h=c[2],l=c[3],cl=c[4],bull=cl>=o,col=bull?P.gn:P.rd,x=pL2+i*gap+gap/2,bT=yP(Math.max(o,cl)),bB=yP(Math.min(o,cl)),bH=Math.max(1,bB-bT);return<g key={i}><line x1={x} y1={yP(h)} x2={x} y2={yP(l)} stroke={col} strokeWidth="1"/><rect x={x-cw/2} y={bT} width={cw} height={bH} fill={col} rx=".5"/></g>;})}{currentPrice&&<g><line x1={pL2} y1={yP(currentPrice)} x2={pL2+chartW} y2={yP(currentPrice)} stroke="#7c4dff" strokeWidth=".7" strokeDasharray="2,2"/><rect x={W-pR+1} y={yP(currentPrice)-8} width={pR-3} height={16} rx="3" fill="#7c4dff"/><text x={W-2} y={yP(currentPrice)+3} fill="#fff" fontSize={fz} fontWeight="700" textAnchor="end" fontFamily={P.mono}>{fmt(currentPrice)}</text></g>}</svg></div>);}
 
@@ -64,6 +147,7 @@ function SigCard({sig,ohlcData,currentPrice,expanded,onToggle,amounts,bal,fees,o
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <div style={{width:6,height:6,borderRadius:"50%",background:sig.coinColor}}/><span style={{fontWeight:700,fontSize:fsx.md+2,color:P.tx}}>{sig.symbol}</span><span style={{fontSize:fsx.xs,padding:"2px 7px",borderRadius:5,background:sig.typeColor+"18",color:sig.typeColor,fontWeight:600}}>{sig.type}</span><span style={{fontSize:fsx.xs,padding:"2px 6px",borderRadius:5,background:P.gns,color:P.gn,fontWeight:600,fontFamily:P.mono}}>+{sig.profitPct.toFixed(1)}%</span><span style={{fontSize:fsx.xs,color:P.yl,fontFamily:P.mono,fontWeight:600}}>{sig.rr}</span>{sig.trend&&<span style={{fontSize:fsx.xs-1,color:sig.trend==="up"?P.gn:P.rd,fontFamily:P.mono}}>{sig.trend==="up"?"▲":"▼"}</span>}
+          {sig.calibrated&&sig.trackRecord&&<span style={{fontSize:fsx.xs,padding:"2px 6px",borderRadius:4,background:sig.trackRecord.winRate>=50?P.gns:P.rds,color:sig.trackRecord.winRate>=50?P.gn:P.rd,fontWeight:600,fontFamily:P.mono,whiteSpace:"nowrap"}} title="Historical win rate for this signal type">{sig.trackRecord.winRate.toFixed(0)}% / {sig.trackRecord.total}t</span>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <div style={{width:40,height:4,borderRadius:2,background:P.bd}}><div style={{width:`${sig.confidence}%`,height:"100%",borderRadius:2,background:sig.confidence>=70?P.gn:sig.confidence>=50?P.yl:P.rd}}/></div>
@@ -108,14 +192,28 @@ export default function App(){
   useEffect(()=>{if(!loaded)return;sSet("pts",JSON.stringify({bal,ot:openT.map(t=>({...t,priceHistory:(t.priceHistory||[]).slice(-50)})),ct:closedT.slice(-100).map(t=>({...t,chartSnapshot:(t.chartSnapshot||[]).slice(-60)})),ft:feeIdx,rl:risk,am:amounts}));},[bal,openT,closedT,feeIdx,risk,amounts,loaded]);
   useEffect(()=>{if(!openT.length)return;setOpenT(p=>p.map(t=>{const cp=merged[t.coinId]?.price;if(!cp)return t;const h=t.priceHistory||[];if(!h.length||Date.now()-h[h.length-1].t>5000)return{...t,priceHistory:[...h,{p:cp,t:Date.now()}].slice(-200)};return t;}));},[wsTick,merged]);
   useEffect(()=>{if(!openT.length)return;openT.forEach(t=>{const cp=merged[t.coinId]?.price;if(!cp)return;if(cp>=t.targetPrice)closeT2(t.id,"Target ✅");else if(cp<=t.stopPrice)closeT2(t.id,"Stop ❌");});},[merged,wsTick]);
-  function enterTrade(sig,amt){const ep=(sig.entryLow+sig.entryHigh)/2,tp=(sig.targetLow+sig.targetHigh)/2,f=amt*(fee.tk/100),cost=amt+f;if(cost>bal){notify("Insufficient balance",P.rd);return;}const id=Date.now(),now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();setBal(b=>b-cost);setOpenT(p=>[...p,{id,symbol:sig.symbol,coinId:sig.coinId,type:sig.type,entryPrice:ep,targetPrice:tp,stopPrice:sig.stop,coins:amt/ep,investAmt:amt,entryFee:f,enteredAt:ts,enteredMs:now.getTime(),priceHistory:[{p:ep,t:Date.now()}],riskLabel:RISK[risk].label,rr:sig.rr}]);notify(`Opened ${sig.symbol} $${amt}`,P.gn);}
+  function enterTrade(sig,amt){const ep=(sig.entryLow+sig.entryHigh)/2,tp=(sig.targetLow+sig.targetHigh)/2,f=amt*(fee.tk/100),cost=amt+f;if(cost>bal){notify("Insufficient balance",P.rd);return;}const id=Date.now(),now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();setBal(b=>b-cost);setOpenT(p=>[...p,{id,symbol:sig.symbol,coinId:sig.coinId,type:sig.type,entryPrice:ep,targetPrice:tp,stopPrice:sig.stop,coins:amt/ep,investAmt:amt,entryFee:f,enteredAt:ts,enteredMs:now.getTime(),priceHistory:[{p:ep,t:Date.now()}],riskLabel:RISK[risk].label,rr:sig.rr,entryRsi:sig.rsi,entryTrend:sig.trend,entryVol:sig.atrPct,entryMom:sig.momentum,entrySupport:sig.supportLevel,entryResistance:sig.resistanceLevel,entryConfidence:sig.confidence}]);notify(`Opened ${sig.symbol} $${amt}`,P.gn);}
   function closeT2(id,reason){setOpenT(p=>{const t=p.find(x=>x.id===id);if(!t)return p;const cp=merged[t.coinId]?.price||t.entryPrice,gv=t.coins*cp,xf=gv*(fee.mk/100),net=gv-xf,pnl=net-t.investAmt-t.entryFee,pp=(pnl/t.investAmt)*100;const now=new Date(),ts=now.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+now.toLocaleTimeString();const dMs=t.enteredMs?now.getTime()-t.enteredMs:0,dur=dMs<60000?`${Math.round(dMs/1000)}s`:dMs<3600000?`${Math.floor(dMs/60000)}m`:`${Math.floor(dMs/3600000)}h ${Math.floor((dMs%3600000)/60000)}m`;setBal(b=>b+net);setClosedT(c=>[...c,{...t,exitPrice:cp,exitFee:xf,pnl,pnlPct:pp,reason:reason||"Manual",closedAt:ts,duration:dur,chartSnapshot:(t.priceHistory||[]).slice(-100)}]);notify(`${t.symbol} ${reason||"Closed"} ${pnl>=0?"+":""}$${fmt(pnl)}`,pnl>=0?P.gn:P.rd);return p.filter(x=>x.id!==id);});}
   function modTrade(id){setOpenT(p=>p.map(t=>{if(t.id!==id)return t;const u={...t};const tp2=parseFloat(editTP),sl=parseFloat(editSL);if(!isNaN(tp2)&&tp2>t.entryPrice)u.targetPrice=tp2;if(!isNaN(sl)&&sl<t.entryPrice)u.stopPrice=sl;return u;}));setEditTId(null);notify("TP/SL updated",P.ac);}
   function notify(msg,c){setNotif({msg,c});setTimeout(()=>setNotif(null),2500);}
   function saveAmts(){const p=amtText.split(",").map(s=>parseFloat(s.trim())).filter(n=>!isNaN(n)&&n>0);if(p.length){setAmounts(p);setEditAmts(false);}}
   const openPnl=useMemo(()=>openT.reduce((s,t)=>{const cp=merged[t.coinId]?.price||t.entryPrice;return s+(t.coins*cp*(1-fee.mk/100)-t.investAmt-t.entryFee);},0),[openT,merged,fee]);
   const closedPnl=useMemo(()=>closedT.reduce((s,t)=>s+t.pnl,0),[closedT]);const wins=useMemo(()=>closedT.filter(t=>t.pnl>0).length,[closedT]);
-  const allSigs=useMemo(()=>COINS.flatMap(c=>{const d=merged[c.id];if(!d?.price)return[];return genSigs(c,d,analyze(ohlc[c.id]||null),RISK[risk]);}).sort((a,b)=>b.score-a.score),[merged,ohlc,risk]);
+  const tradeAnalysis=useMemo(()=>computeTradeAnalysis(closedT),[closedT]);
+  const allSigs=useMemo(()=>{
+    const cal=tradeAnalysis.calibration;
+    return COINS.flatMap(c=>{const d=merged[c.id];if(!d?.price)return[];return genSigs(c,d,analyze(ohlc[c.id]||null),RISK[risk]).map(sig=>{
+      // Apply calibration from trade history
+      let adjConf=sig.confidence;
+      const typeCal=cal[sig.type],coinCal=cal[`coin:${sig.symbol}`];
+      if(typeCal)adjConf=Math.round(adjConf*typeCal.factor);
+      if(coinCal)adjConf=Math.round(adjConf*coinCal.factor);
+      adjConf=Math.max(10,Math.min(95,adjConf));
+      const trackRecord=typeCal?{winRate:typeCal.winRate,total:typeCal.total}:null;
+      const coinRecord=coinCal?{winRate:coinCal.winRate,total:coinCal.total}:null;
+      return{...sig,confidence:adjConf,trackRecord,coinRecord,calibrated:!!(typeCal||coinCal)};
+    });}).sort((a,b)=>b.score-a.score);
+  },[merged,ohlc,risk,tradeAnalysis]);
   const sigTypes=useMemo(()=>["all",...new Set(allSigs.map(t=>t.type.toLowerCase()))],[allSigs]);
   const filtSigs=sigFilter==="all"?allSigs:allSigs.filter(t=>t.type.toLowerCase()===sigFilter);
   const fgD=fg||{value:62,label:"Greed"};const fgC=fgD.value>55?P.gn:fgD.value>45?P.yl:P.rd;const hasPrices=Object.values(merged).some(m=>m.price!=null);
@@ -162,7 +260,7 @@ export default function App(){
       {openT.length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${P.bd}`}}><div style={{fontSize:fs.xs,color:P.td,fontFamily:P.mono,marginBottom:6}}>OPEN POSITIONS</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{openT.map(t=>{const cp=merged[t.coinId]?.price||t.entryPrice,pnl=t.coins*cp*(1-fee.mk/100)-t.investAmt-t.entryFee;return<div key={t.id} style={{background:P.bg,borderRadius:6,padding:mob?"6px 10px":"5px 8px",display:"flex",alignItems:"center",gap:8,border:`1px solid ${pnl>=0?P.gn:P.rd}15`,fontSize:fs.sm,fontFamily:P.mono}}><span style={{fontWeight:700,color:P.tx}}>{t.symbol}</span><span style={{color:P.td}}>${t.investAmt}</span><span style={{fontWeight:600,color:pnl>=0?P.gn:P.rd}}>{pnl>=0?"+":""}${fmt(pnl)}</span><button onClick={()=>closeT2(t.id,"Manual")} style={{background:P.rds,border:"none",borderRadius:4,padding:"4px 8px",fontSize:fs.xs,color:P.rd,cursor:"pointer"}}>×</button><button onClick={()=>{setEditTId(editTId===t.id?null:t.id);setEditTP(t.targetPrice.toString());setEditSL(t.stopPrice.toString());}} style={{background:P.acs,border:"none",borderRadius:4,padding:"4px 8px",fontSize:fs.xs,color:P.ac,cursor:"pointer"}}>✎</button></div>;})}</div>{editTId&&openT.find(t=>t.id===editTId)&&<div style={{display:"flex",gap:8,marginTop:8,alignItems:"flex-end",flexWrap:"wrap"}}><div><div style={{fontSize:fs.xs,color:P.gn,fontFamily:P.mono,marginBottom:2}}>TP</div><input value={editTP} onChange={e=>setEditTP(e.target.value)} style={{background:P.bg,border:`1px solid ${P.gn}40`,borderRadius:5,padding:"6px 8px",fontSize:fs.md,color:P.gn,width:mob?100:90,outline:"none",fontFamily:P.mono}}/></div><div><div style={{fontSize:fs.xs,color:P.rd,fontFamily:P.mono,marginBottom:2}}>SL</div><input value={editSL} onChange={e=>setEditSL(e.target.value)} style={{background:P.bg,border:`1px solid ${P.rd}40`,borderRadius:5,padding:"6px 8px",fontSize:fs.md,color:P.rd,width:mob?100:90,outline:"none",fontFamily:P.mono}}/></div><button onClick={()=>modTrade(editTId)} style={{background:P.ac,color:"#fff",border:"none",borderRadius:5,padding:"8px 16px",fontSize:fs.sm,fontWeight:700,cursor:"pointer",minHeight:tap}}>Apply</button></div>}</div>}
     </div>}
     {/* NAV */}
-    {loaded&&!mob&&<div style={{display:"flex",borderBottom:`1px solid ${P.bd}`,background:P.sf}}>{[{k:"signals",l:`Signals (${allSigs.length})`},{k:"log",l:`Log${closedT.length>0?` (${closedT.length})`:""}`}].map(tab=><button key={tab.k} onClick={()=>setPage(tab.k)} style={{flex:1,padding:"10px 0",fontSize:fs.sm,fontWeight:600,cursor:"pointer",border:"none",borderBottom:page===tab.k?`2px solid ${P.ac}`:"2px solid transparent",background:"transparent",color:page===tab.k?P.tx:P.td,minHeight:tap}}>{tab.l}</button>)}</div>}
+    {loaded&&!mob&&<div style={{display:"flex",borderBottom:`1px solid ${P.bd}`,background:P.sf}}>{[{k:"signals",l:`Signals (${allSigs.length})`},{k:"analysis",l:"Analysis"},{k:"log",l:`Log${closedT.length>0?` (${closedT.length})`:""}`}].map(tab=><button key={tab.k} onClick={()=>setPage(tab.k)} style={{flex:1,padding:"10px 0",fontSize:fs.sm,fontWeight:600,cursor:"pointer",border:"none",borderBottom:page===tab.k?`2px solid ${P.ac}`:"2px solid transparent",background:"transparent",color:page===tab.k?P.tx:P.td,minHeight:tap}}>{tab.l}</button>)}</div>}
     {isFallback&&<div style={{background:P.yls,borderBottom:`1px solid ${P.yl}30`,padding:`6px ${pad}`,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:fs.sm,color:P.yl}}>⚠ Sample data</span><button onClick={fetchAll} style={{background:P.yl,color:"#000",border:"none",borderRadius:5,padding:"4px 12px",fontSize:fs.sm,fontWeight:600,cursor:"pointer"}}>Retry</button></div>}
     <div style={{padding:pad}}>
       {/* ═══ SIGNALS PAGE ═══ */}
@@ -197,6 +295,125 @@ export default function App(){
         </div>
       </>)}
       {loaded&&page==="signals"&&!hasPrices&&<div style={{textAlign:"center",padding:60}}><div style={{fontSize:28,marginBottom:10,opacity:.4}}>◌</div><div style={{fontSize:fs.lg,fontWeight:600}}>Connecting to markets...</div></div>}
+
+      {/* ═══ ANALYSIS TAB ═══ */}
+      {loaded&&page==="analysis"&&(()=>{
+        const a=tradeAnalysis,ct2=closedT,hasData=ct2.length>=2;
+        const statBox=(label,value,color,sub)=><div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:8,padding:mob?"10px":"10px 12px"}}><div style={{fontSize:fs.xs,color:P.td,fontFamily:P.mono,letterSpacing:.5}}>{label}</div><div style={{fontSize:mob?16:20,fontWeight:700,color,fontFamily:P.mono}}>{value}</div>{sub&&<div style={{fontSize:fs.xs,color:P.td,fontFamily:P.mono,marginTop:2}}>{sub}</div>}</div>;
+        const barRow=(label,wins2,losses,total)=>{const wr=total>0?(wins2/total)*100:0;return<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><span style={{fontSize:fs.sm,color:P.tx,minWidth:mob?60:80,fontWeight:600}}>{label}</span><div style={{flex:1,height:16,borderRadius:4,background:P.bd,display:"flex",overflow:"hidden"}}>{wins2>0&&<div style={{width:`${wr}%`,background:P.gn,borderRadius:wr===100?"4px":"4px 0 0 4px",minWidth:2}}/>}{losses>0&&<div style={{width:`${100-wr}%`,background:P.rd,borderRadius:wr===0?"4px":"0 4px 4px 0",minWidth:2}}/>}</div><span style={{fontSize:fs.xs,color:P.ts,fontFamily:P.mono,minWidth:60,textAlign:"right"}}>{wr.toFixed(0)}% ({total})</span></div>;};
+
+        return<div>
+          {!hasData&&<div style={{textAlign:"center",padding:60,color:P.td}}><div style={{fontSize:28,marginBottom:10,opacity:.4}}>◎</div><div style={{fontSize:fs.md}}>Need at least 2 closed trades for analysis</div><div style={{fontSize:fs.sm,color:P.td,marginTop:6}}>Start paper trading from Signals to build your data</div></div>}
+
+          {hasData&&<>
+            {/* Overview stats */}
+            <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:8,marginBottom:16}}>
+              {statBox("WIN RATE",`${(a.totalWR||0).toFixed(0)}%`,a.totalWR>50?P.gn:P.rd,`${wins}W / ${ct2.length-wins}L`)}
+              {statBox("TOTAL P&L",`${closedPnl>=0?"+":""}$${fmt(closedPnl)}`,closedPnl>=0?P.gn:P.rd,`${ct2.length} trades`)}
+              {statBox("AVG WIN",ct2.filter(t=>t.pnl>0).length>0?`+$${fmt(ct2.filter(t=>t.pnl>0).reduce((s,t)=>s+t.pnl,0)/ct2.filter(t=>t.pnl>0).length)}`:"—",P.gn)}
+              {statBox("AVG LOSS",ct2.filter(t=>t.pnl<=0).length>0?`$${fmt(ct2.filter(t=>t.pnl<=0).reduce((s,t)=>s+t.pnl,0)/ct2.filter(t=>t.pnl<=0).length)}`:"—",P.rd)}
+            </div>
+
+            {/* AI Insights */}
+            {a.insights.length>0&&<div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16,marginBottom:16}}>
+              <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                <span>Insights</span>
+                <span style={{fontSize:fs.xs,padding:"2px 6px",borderRadius:4,background:P.acs,color:P.ac,fontWeight:600,fontFamily:P.mono}}>CALIBRATING SIGNALS</span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {a.insights.map((ins,i)=><div key={i} style={{display:"flex",gap:8,alignItems:"start",padding:"8px 10px",background:P.bg,borderRadius:6,borderLeft:`3px solid ${ins.type==="positive"?P.gn:ins.type==="negative"?P.rd:P.yl}`}}>
+                  <span style={{fontSize:fs.sm,color:ins.type==="positive"?P.gn:ins.type==="negative"?P.rd:P.yl,flexShrink:0}}>{ins.type==="positive"?"▲":ins.type==="negative"?"▼":"●"}</span>
+                  <span style={{fontSize:fs.sm,color:P.tx,lineHeight:1.5}}>{ins.text}</span>
+                </div>)}
+              </div>
+            </div>}
+
+            {/* Win Rate by Signal Type */}
+            <div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16,marginBottom:12}}>
+              <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10}}>Performance by Signal Type</div>
+              {Object.entries(a.byType).sort((x,y)=>y[1].total-x[1].total).map(([type,d])=>barRow(type,d.wins,d.losses,d.total))}
+            </div>
+
+            {/* Win Rate by Coin */}
+            <div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16,marginBottom:12}}>
+              <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10}}>Performance by Coin</div>
+              {Object.entries(a.byCoin).sort((x,y)=>y[1].total-x[1].total).map(([coin,d])=>barRow(coin,d.wins,d.losses,d.total))}
+            </div>
+
+            {/* Market Conditions */}
+            <div style={{display:"grid",gridTemplateColumns:compact?"1fr":"1fr 1fr",gap:12,marginBottom:12}}>
+              {Object.keys(a.byTrend).length>0&&<div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16}}>
+                <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10}}>By Trend Direction</div>
+                {Object.entries(a.byTrend).map(([dir,d])=>barRow(dir==="up"?"Uptrend":"Downtrend",d.wins,d.losses,d.total))}
+              </div>}
+              {Object.keys(a.byRsi).length>0&&<div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16}}>
+                <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10}}>By RSI at Entry</div>
+                {Object.entries(a.byRsi).map(([range,d])=>barRow(range,d.wins,d.losses,d.total))}
+              </div>}
+            </div>
+
+            {Object.keys(a.byVol).length>0&&<div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16,marginBottom:12}}>
+              <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10}}>By Volatility at Entry</div>
+              {Object.entries(a.byVol).map(([range,d])=>barRow(range,d.wins,d.losses,d.total))}
+            </div>}
+
+            {/* Calibration Status */}
+            {Object.keys(a.calibration).length>0&&<div style={{background:P.sf,border:`1px solid ${P.ac}20`,borderRadius:10,padding:mob?12:16,marginBottom:12}}>
+              <div style={{fontSize:fs.md,fontWeight:700,marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+                Signal Calibration
+                <span style={{fontSize:fs.xs,padding:"2px 6px",borderRadius:4,background:P.gns,color:P.gn,fontWeight:600,fontFamily:P.mono}}>ACTIVE</span>
+              </div>
+              <p style={{fontSize:fs.sm,color:P.ts,margin:"0 0 10px",lineHeight:1.5}}>Confidence scores on new signals are being adjusted based on your trade history. Types and coins with higher win rates get boosted, underperformers get reduced.</p>
+              <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(3,1fr)",gap:6}}>
+                {Object.entries(a.calibration).map(([key,d])=>{
+                  const isUp=d.factor>1,label=key.startsWith("coin:")?key.slice(5):key;
+                  return<div key={key} style={{background:P.bg,borderRadius:6,padding:"6px 10px"}}>
+                    <div style={{fontSize:fs.xs,color:P.td,fontFamily:P.mono}}>{label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{fontSize:fs.md,fontWeight:700,color:isUp?P.gn:P.rd,fontFamily:P.mono}}>{isUp?"▲":"▼"}{(Math.abs(d.factor-1)*100).toFixed(0)}%</span>
+                      <span style={{fontSize:fs.xs,color:P.td,fontFamily:P.mono}}>{d.winRate.toFixed(0)}%WR/{d.total}t</span>
+                    </div>
+                  </div>;
+                })}
+              </div>
+            </div>}
+
+            {/* Trade Autopsy — recent trades with analysis */}
+            <div style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:10,padding:mob?12:16}}>
+              <div style={{fontSize:fs.md,fontWeight:700,marginBottom:10}}>Trade Autopsy</div>
+              {ct2.slice().reverse().slice(0,10).map((t,i)=>{
+                const w=t.pnl>0,col=w?P.gn:P.rd;
+                const reasons=[];
+                if(t.reason?.includes("Target"))reasons.push("Hit take-profit target");
+                else if(t.reason?.includes("Stop"))reasons.push("Hit stop-loss");
+                else reasons.push("Manually closed");
+                if(t.entryRsi!=null){if(t.entryRsi<30&&w)reasons.push("Oversold RSI entry worked");if(t.entryRsi>70&&!w)reasons.push("Overbought RSI — risky entry");if(t.entryRsi>=30&&t.entryRsi<=70)reasons.push(`Neutral RSI (${t.entryRsi.toFixed(0)}) at entry`);}
+                if(t.entryTrend){if(t.entryTrend==="up"&&t.type==="Long"&&w)reasons.push("Trend-aligned long — ideal setup");if(t.entryTrend==="down"&&t.type==="Long"&&!w)reasons.push("Counter-trend long — high risk");}
+                if(t.entryVol!=null){if(t.entryVol>1.5&&!w)reasons.push(`High volatility (${t.entryVol.toFixed(1)}%) — unpredictable`);}
+
+                return<div key={i} style={{background:P.bg,borderRadius:8,padding:mob?"10px":"8px 12px",marginBottom:6,borderLeft:`3px solid ${col}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontWeight:700,fontSize:fs.md,color:P.tx}}>{t.symbol}</span>
+                      <span style={{fontSize:fs.xs,padding:"1px 5px",borderRadius:4,background:`${col}15`,color:col,fontWeight:600}}>{t.type}</span>
+                      <span style={{fontSize:fs.xs,color:col,fontWeight:700,fontFamily:P.mono}}>{t.reason}</span>
+                    </div>
+                    <span style={{fontSize:fs.md,fontWeight:700,color:col,fontFamily:P.mono}}>{t.pnl>=0?"+":""}${fmt(t.pnl)}</span>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                    {t.entryRsi!=null&&<span style={{fontSize:fs.xs,background:P.sfr,borderRadius:4,padding:"2px 6px",fontFamily:P.mono}}><span style={{color:P.td}}>RSI </span><span style={{color:t.entryRsi<30?P.gn:t.entryRsi>70?P.rd:P.yl}}>{t.entryRsi.toFixed(0)}</span></span>}
+                    {t.entryTrend&&<span style={{fontSize:fs.xs,background:P.sfr,borderRadius:4,padding:"2px 6px",fontFamily:P.mono}}><span style={{color:P.td}}>TREND </span><span style={{color:t.entryTrend==="up"?P.gn:P.rd}}>{t.entryTrend}</span></span>}
+                    {t.entryVol!=null&&<span style={{fontSize:fs.xs,background:P.sfr,borderRadius:4,padding:"2px 6px",fontFamily:P.mono}}><span style={{color:P.td}}>VOL </span><span style={{color:P.ac}}>{t.entryVol.toFixed(1)}%</span></span>}
+                    {t.duration&&<span style={{fontSize:fs.xs,background:P.sfr,borderRadius:4,padding:"2px 6px",fontFamily:P.mono,color:P.td}}>{t.duration}</span>}
+                  </div>
+                  <div style={{fontSize:fs.xs,color:P.ts,lineHeight:1.5}}>{reasons.join(" · ")}</div>
+                </div>;
+              })}
+            </div>
+          </>}
+        </div>;
+      })()}
+
       {/* ═══ TRADE LOG ═══ */}
       {loaded&&page==="log"&&(<div>
         <div style={{display:"grid",gridTemplateColumns:mob?"repeat(3,1fr)":"repeat(6,1fr)",gap:mob?6:8,marginBottom:14}}>{[{l:"TRADES",v:closedT.length,c:P.tx},{l:"WINS",v:wins,c:P.gn},{l:"LOSSES",v:closedT.length-wins,c:P.rd},{l:"WIN%",v:closedT.length>0?`${((wins/closedT.length)*100).toFixed(0)}%`:"—",c:P.yl},{l:"TOTAL",v:`${closedPnl>=0?"+":""}$${fmt(closedPnl)}`,c:closedPnl>=0?P.gn:P.rd},{l:"AVG",v:closedT.length>0?`${(closedPnl/closedT.length)>=0?"+":""}$${fmt(closedPnl/closedT.length)}`:"—",c:closedPnl>=0?P.gn:P.rd}].map((s,i)=><div key={i} style={{background:P.sf,border:`1px solid ${P.bd}`,borderRadius:8,padding:mob?"10px":"8px 10px"}}><div style={{fontSize:fs.xs,color:P.td,fontFamily:P.mono,letterSpacing:.5}}>{s.l}</div><div style={{fontSize:mob?16:18,fontWeight:700,color:s.c,fontFamily:P.mono}}>{s.v}</div></div>)}</div>
@@ -207,7 +424,7 @@ export default function App(){
       </div>)}
     </div>
     <div style={{padding:`10px ${pad}`,borderTop:`1px solid ${P.bd}`,marginTop:20}}><p style={{fontSize:fs.xs,color:P.td,margin:0,lineHeight:1.6}}><strong style={{color:P.ts}}>Disclaimer:</strong> Paper trading with simulated funds. Signals from Kraken OHLC analysis. Not financial advice. Crypto involves significant risk.</p></div>
-    {loaded&&mob&&<div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,display:"flex",background:P.sf,borderTop:`1px solid ${P.bd}`,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>{[{k:"signals",l:"Signals",n:allSigs.length},{k:"log",l:"Log",n:closedT.length}].map(tab=><button key={tab.k} onClick={()=>setPage(tab.k)} style={{flex:1,padding:"10px 0 8px",fontSize:11,fontWeight:600,cursor:"pointer",border:"none",borderTop:page===tab.k?`2px solid ${P.ac}`:"2px solid transparent",background:"transparent",color:page===tab.k?P.tx:P.td,minHeight:48,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span>{tab.l}</span>{tab.n>0&&<span style={{fontSize:9,color:page===tab.k?P.ac:P.td,fontFamily:P.mono}}>{tab.n}</span>}</button>)}</div>}
+    {loaded&&mob&&<div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,display:"flex",background:P.sf,borderTop:`1px solid ${P.bd}`,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>{[{k:"signals",l:"Signals",n:allSigs.length},{k:"analysis",l:"Analysis",n:0},{k:"log",l:"Log",n:closedT.length}].map(tab=><button key={tab.k} onClick={()=>setPage(tab.k)} style={{flex:1,padding:"10px 0 8px",fontSize:11,fontWeight:600,cursor:"pointer",border:"none",borderTop:page===tab.k?`2px solid ${P.ac}`:"2px solid transparent",background:"transparent",color:page===tab.k?P.tx:P.td,minHeight:48,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span>{tab.l}</span>{tab.n>0&&<span style={{fontSize:9,color:page===tab.k?P.ac:P.td,fontFamily:P.mono}}>{tab.n}</span>}</button>)}</div>}
     <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}*{box-sizing:border-box}::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${P.bd};border-radius:3px}button{transition:opacity .12s;-webkit-tap-highlight-color:transparent}button:hover{opacity:.85}button:active{opacity:.7}input,select{font-family:${P.mono};-webkit-appearance:none}`}</style>
   </div>);
 }
