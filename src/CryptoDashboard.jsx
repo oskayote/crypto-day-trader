@@ -165,6 +165,20 @@ function genSignals(coin, md, an, rk) {
    SMALL COMPONENTS
    ═══════════════════════════════════════════════════════════════ */
 
+function useContainerWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) setWidth(entry.contentRect.width);
+    });
+    observer.observe(ref.current);
+    setWidth(ref.current.clientWidth);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
+
 function ConfBar({ value }) {
   const c = value >= 70 ? T.green : value >= 50 ? T.yellow : T.red;
   return (
@@ -182,8 +196,11 @@ function ConfBar({ value }) {
    ═══════════════════════════════════════════════════════════════ */
 
 function OHLCChart({ candles, coin, currentPrice, previewSignal, openPositions, isMobile, tradeAmounts, balance, fees, onEnterTrade }) {
-  const W = isMobile ? 360 : 620, H = isMobile ? 240 : 320;
-  const pL = 8, pR = 62, pT = 12, pB = 20;
+  const containerRef = useRef(null);
+  const containerW = useContainerWidth(containerRef);
+  const W = containerW || (isMobile ? 360 : 620);
+  const H = isMobile ? 220 : Math.min(360, Math.max(240, W * 0.5));
+  const pL = 8, pR = isMobile ? 52 : 62, pT = 12, pB = 20;
   const cW = W - pL - pR, cH = H - pT - pB;
 
   if (!candles || candles.length < 5) return (
@@ -214,9 +231,9 @@ function OHLCChart({ candles, coin, currentPrice, previewSignal, openPositions, 
   const sigPreview = previewSignal && previewSignal.coinId === coin.id ? previewSignal : null;
 
   return (
-    <div style={{ background: T.surface, borderRadius: 8, border: `1px solid ${T.border}`, overflow: "hidden" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div ref={containerRef} style={{ background: T.surface, borderRadius: 8, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: isMobile ? "6px 10px" : "8px 12px", borderBottom: `1px solid ${T.border}`, flexWrap: "wrap", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: coin.color }} />
           <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{coin.symbol}/USD</span>
           <span style={{ fontSize: 10, color: T.textDim }}>15m</span>
@@ -402,64 +419,69 @@ function ClosedChart({ trade, isMobile }) {
    ═══════════════════════════════════════════════════════════════ */
 
 function SignalCard({ sig, i, isPreview, onPreview, amounts, bal, fees, onTrade, mob }) {
+  const tap = mob ? 40 : 32;
+  const fs = mob ? { xs: 9, sm: 10, md: 12 } : { xs: 10, sm: 11, md: 13 };
   return (
     <div style={{
       background: isPreview ? T.surfaceRaised : T.surface,
       border: `1px solid ${isPreview ? T.accent : T.border}`,
-      borderRadius: 8, padding: mob ? 10 : 12, position: "relative",
+      borderRadius: 10, padding: mob ? 12 : 12, position: "relative",
       transition: "border-color .2s, background .2s",
     }}>
-      {i === 0 && <div style={{ position: "absolute", top: -1, right: 12, background: T.yellow, color: "#000", fontSize: 8, fontWeight: 700, padding: "1px 6px", borderRadius: "0 0 4px 4px", fontFamily: T.mono }}>TOP</div>}
+      {i === 0 && <div style={{ position: "absolute", top: -1, right: 12, background: T.yellow, color: "#000", fontSize: 8, fontWeight: 700, padding: "2px 8px", borderRadius: "0 0 5px 5px", fontFamily: T.mono }}>TOP</div>}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6, cursor: "pointer" }} onClick={onPreview}>
         <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: sig.coinColor }} />
-          <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{sig.symbol}</span>
-          <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: sig.typeColor + "18", color: sig.typeColor, fontWeight: 600 }}>{sig.type}</span>
-          <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 4, background: T.greenSoft, color: T.green, fontWeight: 600, fontFamily: T.mono }}>+{sig.profitPct.toFixed(1)}%</span>
-          {sig.trend && <span style={{ fontSize: 8, color: sig.trend === "up" ? T.green : T.red, fontFamily: T.mono }}>{sig.trend === "up" ? "▲" : "▼"}</span>}
+          <span style={{ fontWeight: 700, fontSize: fs.md + 2, color: T.text }}>{sig.symbol}</span>
+          <span style={{ fontSize: fs.xs, padding: "3px 8px", borderRadius: 5, background: sig.typeColor + "18", color: sig.typeColor, fontWeight: 600 }}>{sig.type}</span>
+          <span style={{ fontSize: fs.xs, padding: "3px 6px", borderRadius: 5, background: T.greenSoft, color: T.green, fontWeight: 600, fontFamily: T.mono }}>+{sig.profitPct.toFixed(1)}%</span>
+          {sig.trend && <span style={{ fontSize: fs.xs, color: sig.trend === "up" ? T.green : T.red, fontFamily: T.mono }}>{sig.trend === "up" ? "▲" : "▼"}</span>}
         </div>
-        <button style={{ background: isPreview ? T.accent : T.accentSoft, border: "none", borderRadius: 4, padding: "3px 8px", fontSize: 9, color: isPreview ? "#fff" : T.accent, cursor: "pointer", fontWeight: 600, fontFamily: T.mono, whiteSpace: "nowrap" }}>
+        <button style={{ background: isPreview ? T.accent : T.accentSoft, border: "none", borderRadius: 5, padding: mob ? "6px 12px" : "4px 10px", fontSize: fs.xs, color: isPreview ? "#fff" : T.accent, cursor: "pointer", fontWeight: 600, fontFamily: T.mono, whiteSpace: "nowrap", minHeight: tap - 8 }}>
           {isPreview ? "Previewing" : "Preview ◎"}
         </button>
       </div>
 
-      <p style={{ fontSize: 10, color: T.textSoft, lineHeight: 1.4, margin: "0 0 8px" }}>{sig.desc}</p>
+      <p style={{ fontSize: fs.sm, color: T.textSoft, lineHeight: 1.5, margin: "0 0 8px" }}>{sig.desc}</p>
 
-      <div style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}>
-        {sig.rsi != null && <span style={{ background: T.bg, borderRadius: 4, padding: "2px 6px", fontSize: 9, fontFamily: T.mono }}><span style={{ color: T.textDim }}>RSI </span><span style={{ color: sig.rsi > 70 ? T.red : sig.rsi < 30 ? T.green : T.yellow, fontWeight: 600 }}>{sig.rsi.toFixed(0)}</span></span>}
-        {sig.atrPct != null && <span style={{ background: T.bg, borderRadius: 4, padding: "2px 6px", fontSize: 9, fontFamily: T.mono }}><span style={{ color: T.textDim }}>VOL </span><span style={{ color: T.accent, fontWeight: 600 }}>{sig.atrPct.toFixed(1)}%</span></span>}
-        <span style={{ background: T.bg, borderRadius: 4, padding: "2px 6px", fontSize: 9, fontFamily: T.mono }}><span style={{ color: T.textDim }}>R/R </span><span style={{ color: T.yellow, fontWeight: 600 }}>{sig.rr}</span></span>
+      <div style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" }}>
+        {sig.rsi != null && <span style={{ background: T.bg, borderRadius: 5, padding: "3px 8px", fontSize: fs.xs, fontFamily: T.mono }}><span style={{ color: T.textDim }}>RSI </span><span style={{ color: sig.rsi > 70 ? T.red : sig.rsi < 30 ? T.green : T.yellow, fontWeight: 600 }}>{sig.rsi.toFixed(0)}</span></span>}
+        {sig.atrPct != null && <span style={{ background: T.bg, borderRadius: 5, padding: "3px 8px", fontSize: fs.xs, fontFamily: T.mono }}><span style={{ color: T.textDim }}>VOL </span><span style={{ color: T.accent, fontWeight: 600 }}>{sig.atrPct.toFixed(1)}%</span></span>}
+        <span style={{ background: T.bg, borderRadius: 5, padding: "3px 8px", fontSize: fs.xs, fontFamily: T.mono }}><span style={{ color: T.textDim }}>R/R </span><span style={{ color: T.yellow, fontWeight: 600 }}>{sig.rr}</span></span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr", gap: 5, marginBottom: 8 }}>
         {[
           { l: "ENTRY", v: `$${fmt(sig.entryLow)}–${fmt(sig.entryHigh)}`, c: T.accent },
           { l: "TARGET", v: `$${fmt(sig.targetLow)}–${fmt(sig.targetHigh)}`, c: T.green },
           { l: "STOP", v: `$${fmt(sig.stop)}`, c: T.red },
         ].map((x, j) => (
-          <div key={j} style={{ background: T.bg, borderRadius: 5, padding: "5px 7px" }}>
-            <div style={{ fontSize: 8, color: T.textDim, fontFamily: T.mono, letterSpacing: 0.5 }}>{x.l}</div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: x.c, fontFamily: T.mono, wordBreak: "break-all" }}>{x.v}</div>
+          <div key={j} style={{ background: T.bg, borderRadius: 6, padding: mob ? "7px 8px" : "5px 7px" }}>
+            <div style={{ fontSize: fs.xs - 1, color: T.textDim, fontFamily: T.mono, letterSpacing: 0.5, marginBottom: 1 }}>{x.l}</div>
+            <div style={{ fontSize: fs.sm, fontWeight: 600, color: x.c, fontFamily: T.mono, wordBreak: "break-all" }}>{x.v}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 8, color: T.textDim, marginBottom: 2, fontFamily: T.mono }}>CONFIDENCE</div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: fs.xs - 1, color: T.textDim, marginBottom: 3, fontFamily: T.mono }}>CONFIDENCE</div>
         <ConfBar value={sig.confidence} />
       </div>
 
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
-        <span style={{ fontSize: 9, color: T.accent, fontWeight: 600, alignSelf: "center", fontFamily: T.mono, marginRight: 2 }}>PAPER</span>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${T.border}`, alignItems: "center" }}>
+        <span style={{ fontSize: fs.xs, color: T.accent, fontWeight: 600, fontFamily: T.mono }}>PAPER</span>
         {amounts.map(amt => {
           const ok = amt + amt * (fees.taker / 100) <= bal;
           return (
             <button key={amt} onClick={() => onTrade(sig, amt)} disabled={!ok} style={{
               background: ok ? T.accentSoft : T.surfaceRaised,
               border: `1px solid ${ok ? T.accent + "60" : T.border}`,
-              borderRadius: 5, padding: "5px 12px", fontSize: 11, fontWeight: 700,
-              cursor: ok ? "pointer" : "not-allowed", color: ok ? T.text : T.textDim, fontFamily: T.mono,
+              borderRadius: 6, padding: mob ? "8px 16px" : "6px 14px",
+              fontSize: fs.sm, fontWeight: 700,
+              cursor: ok ? "pointer" : "not-allowed",
+              color: ok ? T.text : T.textDim, fontFamily: T.mono,
+              minHeight: tap - 4,
             }}>${amt}</button>
           );
         })}
@@ -474,7 +496,9 @@ function SignalCard({ sig, i, isPreview, onPreview, amounts, bal, fees, onTrade,
 
 export default function App() {
   const [winW, setWinW] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
-  const mob = winW < 700;
+  const mob = winW < 520;
+  const tablet = winW >= 520 && winW < 960;
+  const compact = winW < 960; // mob or tablet
   useEffect(() => { const h = () => setWinW(window.innerWidth); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h); }, []);
 
   const [time, setTime] = useState(new Date());
@@ -611,107 +635,113 @@ export default function App() {
   useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { if (!Object.keys(klive).length) return; setMerged(p => { const n = { ...p }; COINS.forEach(c => { const k = klive[c.id]; if (k && n[c.id]) { n[c.id] = { ...n[c.id], bid: k.bid, ask: k.ask, spread: k.spread }; if (k.ts > (n[c.id]._t || 0)) { n[c.id].price = n[c.id].price ? n[c.id].price * 0.4 + k.price * 0.6 : k.price; n[c.id].change24h = k.change; n[c.id]._t = k.ts; } } }); return n; }); }, [wsTick]);
 
+  // Touch-friendly sizing
+  const tap = mob ? 40 : 32; // min tap target
+  const pad = mob ? "10px" : tablet ? "14px" : "20px";
+  const fs = { xs: mob ? 9 : 10, sm: mob ? 10 : 11, md: mob ? 12 : 13, lg: mob ? 14 : 16 };
+
   return (
-    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: T.sans, WebkitTextSizeAdjust: "100%" }}>
+    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: T.sans, WebkitTextSizeAdjust: "100%", paddingBottom: mob ? 56 : 0 }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-      {notif && <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: notif.color, color: "#fff", padding: "8px 22px", borderRadius: 6, fontSize: 12, fontWeight: 600, boxShadow: `0 6px 24px ${notif.color}50`, fontFamily: T.mono, maxWidth: "90vw" }}>{notif.msg}</div>}
+      {notif && <div style={{ position: "fixed", top: mob ? 8 : 12, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: notif.color, color: "#fff", padding: mob ? "10px 18px" : "8px 22px", borderRadius: 8, fontSize: fs.md, fontWeight: 600, boxShadow: `0 6px 24px ${notif.color}50`, fontFamily: T.mono, maxWidth: "92vw" }}>{notif.msg}</div>}
 
-      {/* TOP BAR */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: mob ? "8px 12px" : "8px 20px", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* ═══ TOP BAR ═══ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: `8px ${pad}`, borderBottom: `1px solid ${T.border}`, background: T.surface, position: mob ? "sticky" : "relative", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: mob ? 6 : 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 20, height: 20, borderRadius: 4, background: `linear-gradient(135deg, ${T.accent}, #b388ff)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#fff" }}>C</div>
-            {!mob && <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: -0.3 }}>CryptoTrader</span>}
+            <div style={{ width: 22, height: 22, borderRadius: 5, background: `linear-gradient(135deg, ${T.accent}, #b388ff)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff" }}>C</div>
+            {!mob && <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.3 }}>CryptoTrader</span>}
           </div>
-          <div style={{ display: "flex", gap: mob ? 8 : 14, alignItems: "center", marginLeft: mob ? 4 : 10, fontSize: 11, fontFamily: T.mono }}>
-            <div style={{ color: T.textSoft }}><span style={{ color: T.textDim, fontSize: 9 }}>BAL </span><span style={{ fontWeight: 600 }}>${bal.toFixed(0)}</span></div>
-            <div><span style={{ color: T.textDim, fontSize: 9 }}>P&L </span><span style={{ fontWeight: 600, color: (openPnl + closedPnl) >= 0 ? T.green : T.red }}>{(openPnl + closedPnl) >= 0 ? "+" : ""}${fmt(openPnl + closedPnl)}</span></div>
-            {openT.length > 0 && !mob && <div><span style={{ color: T.textDim, fontSize: 9 }}>OPEN </span><span style={{ fontWeight: 600, color: T.accent }}>{openT.length}</span></div>}
-            <button onClick={() => setShowAcct(!showAcct)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 4, padding: "1px 6px", fontSize: 9, color: T.textDim, cursor: "pointer" }}>{showAcct ? "−" : "⋯"}</button>
+          <div style={{ display: "flex", gap: mob ? 8 : 14, alignItems: "center", marginLeft: mob ? 2 : 10, fontSize: fs.sm, fontFamily: T.mono }}>
+            <div style={{ color: T.textSoft }}><span style={{ color: T.textDim, fontSize: fs.xs }}>BAL </span><span style={{ fontWeight: 600 }}>${bal.toFixed(0)}</span></div>
+            <div><span style={{ color: T.textDim, fontSize: fs.xs }}>P&L </span><span style={{ fontWeight: 600, color: (openPnl + closedPnl) >= 0 ? T.green : T.red }}>{(openPnl + closedPnl) >= 0 ? "+" : ""}${fmt(openPnl + closedPnl)}</span></div>
+            {openT.length > 0 && !mob && <div><span style={{ color: T.textDim, fontSize: fs.xs }}>OPEN </span><span style={{ fontWeight: 600, color: T.accent }}>{openT.length}</span></div>}
+            <button onClick={() => setShowAcct(!showAcct)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 8px", minHeight: tap - 6, fontSize: fs.xs, color: T.textDim, cursor: "pointer" }}>{showAcct ? "−" : "⋯"}</button>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {wsOn && <div style={{ display: "flex", alignItems: "center", gap: 4, background: T.greenSoft, borderRadius: 4, padding: "2px 8px" }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: T.green, animation: "pulse 2s infinite" }} /><span style={{ fontSize: 9, color: T.green, fontWeight: 600, fontFamily: T.mono }}>LIVE</span></div>}
-          <span style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono }}>{time.toLocaleTimeString()}</span>
-          <button onClick={() => { fetchAll(); fetchOHLC(); }} style={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 4, padding: "3px 8px", fontSize: 11, color: T.textSoft, cursor: "pointer" }}>↻</button>
+          {wsOn && <div style={{ display: "flex", alignItems: "center", gap: 4, background: T.greenSoft, borderRadius: 5, padding: "3px 8px" }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: T.green, animation: "pulse 2s infinite" }} /><span style={{ fontSize: fs.xs, color: T.green, fontWeight: 600, fontFamily: T.mono }}>LIVE</span></div>}
+          {!mob && <span style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono }}>{time.toLocaleTimeString()}</span>}
+          <button onClick={() => { fetchAll(); fetchOHLC(); }} style={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 10px", minHeight: tap - 6, fontSize: fs.sm, color: T.textSoft, cursor: "pointer" }}>↻</button>
         </div>
       </div>
 
-      {/* Expandable account */}
+      {/* ═══ Expandable account drawer ═══ */}
       {showAcct && (
-        <div style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: mob ? "8px 12px" : "8px 20px" }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr 1fr" : "repeat(5, auto)", gap: mob ? 6 : 12, fontSize: 11, fontFamily: T.mono }}>
-              {[
-                { l: "CASH", v: editBal ? null : `$${bal.toFixed(2)}`, c: T.text },
-                { l: "EQUITY", v: `$${equity.toFixed(2)}`, c: T.text },
-                { l: "OPEN P&L", v: `${openPnl >= 0 ? "+" : ""}$${fmt(openPnl)}`, c: openPnl >= 0 ? T.green : T.red },
-                { l: "REALIZED", v: `${closedPnl >= 0 ? "+" : ""}$${fmt(closedPnl)}`, c: closedPnl >= 0 ? T.green : T.red },
-                { l: "WIN%", v: closedT.length > 0 ? `${((wins / closedT.length) * 100).toFixed(0)}% (${wins}/${closedT.length})` : "—", c: T.textSoft },
-              ].map((s, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: 8, color: T.textDim, letterSpacing: 0.5 }}>{s.l}</div>
-                  {s.l === "CASH" && editBal ? (
-                    <div style={{ display: "flex", gap: 3 }}>
-                      <input value={balText} onChange={e => setBalText(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 3, padding: "1px 4px", fontSize: 12, color: T.text, width: 60, outline: "none", fontFamily: T.mono }} />
-                      <button onClick={() => { const v = parseFloat(balText); if (!isNaN(v) && v >= 0) { setBal(v); setEditBal(false); } }} style={{ background: T.green, color: "#fff", border: "none", borderRadius: 3, padding: "1px 4px", fontSize: 9, cursor: "pointer" }}>✓</button>
-                    </div>
-                  ) : <div style={{ fontWeight: 600, color: s.c, cursor: s.l === "CASH" ? "pointer" : "default" }} onClick={() => { if (s.l === "CASH") { setBalText(bal.toFixed(0)); setEditBal(true); } }}>{s.v}</div>}
-                </div>
-              ))}
-            </div>
-            <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-              <button onClick={() => setShowSettings(!showSettings)} style={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 4, padding: "3px 8px", fontSize: 9, color: T.textSoft, cursor: "pointer" }}>⚙ Settings</button>
-              <button onClick={() => { setBal(5000); setOpenT([]); setClosedT([]); sDel("pts"); }} style={{ background: T.redSoft, border: `1px solid ${T.red}30`, borderRadius: 4, padding: "3px 8px", fontSize: 9, color: T.red, cursor: "pointer" }}>Reset</button>
-            </div>
+        <div style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: `10px ${pad}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(3, 1fr)" : tablet ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: mob ? 8 : 12, marginBottom: 10 }}>
+            {[
+              { l: "CASH", v: editBal ? null : `$${bal.toFixed(2)}`, c: T.text },
+              { l: "EQUITY", v: `$${equity.toFixed(2)}`, c: T.text },
+              { l: "OPEN P&L", v: `${openPnl >= 0 ? "+" : ""}$${fmt(openPnl)}`, c: openPnl >= 0 ? T.green : T.red },
+              { l: "REALIZED", v: `${closedPnl >= 0 ? "+" : ""}$${fmt(closedPnl)}`, c: closedPnl >= 0 ? T.green : T.red },
+              { l: "WIN%", v: closedT.length > 0 ? `${((wins / closedT.length) * 100).toFixed(0)}% (${wins}/${closedT.length})` : "—", c: T.textSoft },
+            ].map((s, i) => (
+              <div key={i} style={{ background: T.bg, borderRadius: 6, padding: mob ? "8px" : "6px 10px" }}>
+                <div style={{ fontSize: fs.xs, color: T.textDim, letterSpacing: 0.5, fontFamily: T.mono, marginBottom: 2 }}>{s.l}</div>
+                {s.l === "CASH" && editBal ? (
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <input value={balText} onChange={e => setBalText(e.target.value)} style={{ background: T.surfaceRaised, border: `1px solid ${T.accent}`, borderRadius: 4, padding: "4px 6px", fontSize: fs.md, color: T.text, width: 70, outline: "none", fontFamily: T.mono }} />
+                    <button onClick={() => { const v = parseFloat(balText); if (!isNaN(v) && v >= 0) { setBal(v); setEditBal(false); } }} style={{ background: T.green, color: "#fff", border: "none", borderRadius: 4, padding: "4px 8px", fontSize: fs.xs, cursor: "pointer", minHeight: tap - 8 }}>✓</button>
+                  </div>
+                ) : <div style={{ fontWeight: 600, color: s.c, cursor: s.l === "CASH" ? "pointer" : "default", fontSize: fs.md, fontFamily: T.mono }} onClick={() => { if (s.l === "CASH") { setBalText(bal.toFixed(0)); setEditBal(true); } }}>{s.v}</div>}
+              </div>
+            ))}
           </div>
+
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+            <button onClick={() => setShowSettings(!showSettings)} style={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 5, padding: "6px 12px", fontSize: fs.xs, color: T.textSoft, cursor: "pointer", minHeight: tap - 4 }}>⚙ Settings</button>
+            <button onClick={() => { setBal(5000); setOpenT([]); setClosedT([]); sDel("pts"); }} style={{ background: T.redSoft, border: `1px solid ${T.red}30`, borderRadius: 5, padding: "6px 12px", fontSize: fs.xs, color: T.red, cursor: "pointer", minHeight: tap - 4 }}>Reset</button>
+          </div>
+
           {showSettings && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 6, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 8, marginTop: 8, borderTop: `1px solid ${T.border}` }}>
               <div style={{ display: "flex", gap: 4 }}>
                 {RISK_PROFILES.map((rp, i) => (
-                  <button key={i} onClick={() => setRisk(i)} style={{ background: risk === i ? `${rp.color}15` : "transparent", border: `1px solid ${risk === i ? rp.color : T.border}`, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 600, color: risk === i ? rp.color : T.textSoft }}>{rp.label}</button>
+                  <button key={i} onClick={() => setRisk(i)} style={{ background: risk === i ? `${rp.color}15` : "transparent", border: `1px solid ${risk === i ? rp.color : T.border}`, borderRadius: 6, padding: mob ? "8px 14px" : "6px 12px", cursor: "pointer", fontSize: fs.sm, fontWeight: 600, color: risk === i ? rp.color : T.textSoft, minHeight: tap }}>{rp.label}</button>
                 ))}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 9, color: T.textDim, fontFamily: T.mono }}>FEE</span>
-                <select value={feeIdx} onChange={e => setFeeIdx(parseInt(e.target.value))} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4, padding: "3px 6px", fontSize: 10, color: T.textSoft, fontFamily: T.mono, outline: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono }}>FEE</span>
+                <select value={feeIdx} onChange={e => setFeeIdx(parseInt(e.target.value))} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "6px 8px", fontSize: fs.sm, color: T.textSoft, fontFamily: T.mono, outline: "none", minHeight: tap }}>
                   {FEE_TIERS.map((t2, i) => <option key={i} value={i}>{t2.label} ({t2.maker}%/{t2.taker}%)</option>)}
                 </select>
               </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {Object.entries(srcSt).map(([k, v]) => (
                   <div key={k} style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: v === "live" ? T.green : v === "error" ? T.red : T.yellow }} />
-                    <span style={{ fontSize: 8, color: T.textDim, fontFamily: T.mono }}>{k.toUpperCase()}</span>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: v === "live" ? T.green : v === "error" ? T.red : T.yellow }} />
+                    <span style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono }}>{k.toUpperCase()}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
           {openT.length > 0 && (
-            <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 9, color: T.textDim, fontFamily: T.mono, marginBottom: 4 }}>OPEN POSITIONS</div>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono, marginBottom: 6 }}>OPEN POSITIONS</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {openT.map(t => {
                   const cp = merged[t.coinId]?.price || t.entryPrice;
                   const pnl = t.coins * cp * (1 - fees.maker / 100) - t.investAmt - t.entryFee;
                   return (
-                    <div key={t.id} style={{ background: T.bg, borderRadius: 5, padding: "4px 8px", display: "flex", alignItems: "center", gap: 6, border: `1px solid ${pnl >= 0 ? T.green : T.red}15`, fontSize: 10, fontFamily: T.mono }}>
+                    <div key={t.id} style={{ background: T.bg, borderRadius: 6, padding: mob ? "6px 10px" : "5px 8px", display: "flex", alignItems: "center", gap: 8, border: `1px solid ${pnl >= 0 ? T.green : T.red}15`, fontSize: fs.sm, fontFamily: T.mono }}>
                       <span style={{ fontWeight: 700, color: T.text }}>{t.symbol}</span>
                       <span style={{ color: T.textDim }}>${t.investAmt}</span>
                       <span style={{ fontWeight: 600, color: pnl >= 0 ? T.green : T.red }}>{pnl >= 0 ? "+" : ""}${fmt(pnl)}</span>
-                      <button onClick={() => closeTrade(t.id, "Manual")} style={{ background: T.redSoft, border: "none", borderRadius: 3, padding: "1px 5px", fontSize: 9, color: T.red, cursor: "pointer" }}>×</button>
-                      <button onClick={() => { setEditTId(editTId === t.id ? null : t.id); setEditTP(t.targetPrice.toString()); setEditSL(t.stopPrice.toString()); }} style={{ background: T.accentSoft, border: "none", borderRadius: 3, padding: "1px 5px", fontSize: 9, color: T.accent, cursor: "pointer" }}>✎</button>
+                      <button onClick={() => closeTrade(t.id, "Manual")} style={{ background: T.redSoft, border: "none", borderRadius: 4, padding: "4px 8px", fontSize: fs.xs, color: T.red, cursor: "pointer", minHeight: tap - 10 }}>×</button>
+                      <button onClick={() => { setEditTId(editTId === t.id ? null : t.id); setEditTP(t.targetPrice.toString()); setEditSL(t.stopPrice.toString()); }} style={{ background: T.accentSoft, border: "none", borderRadius: 4, padding: "4px 8px", fontSize: fs.xs, color: T.accent, cursor: "pointer", minHeight: tap - 10 }}>✎</button>
                     </div>
                   );
                 })}
               </div>
               {editTId && openT.find(t => t.id === editTId) && (
-                <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "flex-end" }}>
-                  <div><div style={{ fontSize: 8, color: T.green, fontFamily: T.mono }}>TP</div><input value={editTP} onChange={e => setEditTP(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.green}40`, borderRadius: 4, padding: "3px 6px", fontSize: 11, color: T.green, width: 80, outline: "none", fontFamily: T.mono }} /></div>
-                  <div><div style={{ fontSize: 8, color: T.red, fontFamily: T.mono }}>SL</div><input value={editSL} onChange={e => setEditSL(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.red}40`, borderRadius: 4, padding: "3px 6px", fontSize: 11, color: T.red, width: 80, outline: "none", fontFamily: T.mono }} /></div>
-                  <button onClick={() => modTrade(editTId)} style={{ background: T.accent, color: "#fff", border: "none", borderRadius: 4, padding: "5px 12px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Apply</button>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <div><div style={{ fontSize: fs.xs, color: T.green, fontFamily: T.mono, marginBottom: 2 }}>TP</div><input value={editTP} onChange={e => setEditTP(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.green}40`, borderRadius: 5, padding: "6px 8px", fontSize: fs.md, color: T.green, width: mob ? 100 : 90, outline: "none", fontFamily: T.mono }} /></div>
+                  <div><div style={{ fontSize: fs.xs, color: T.red, fontFamily: T.mono, marginBottom: 2 }}>SL</div><input value={editSL} onChange={e => setEditSL(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.red}40`, borderRadius: 5, padding: "6px 8px", fontSize: fs.md, color: T.red, width: mob ? 100 : 90, outline: "none", fontFamily: T.mono }} /></div>
+                  <button onClick={() => modTrade(editTId)} style={{ background: T.accent, color: "#fff", border: "none", borderRadius: 5, padding: "8px 16px", fontSize: fs.sm, fontWeight: 700, cursor: "pointer", minHeight: tap }}>Apply</button>
                 </div>
               )}
             </div>
@@ -719,71 +749,93 @@ export default function App() {
         </div>
       )}
 
-      {/* NAV */}
-      {loaded && (
+      {/* ═══ NAV — top on desktop/tablet, bottom on mobile ═══ */}
+      {loaded && !mob && (
         <div style={{ display: "flex", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
           {[{ key: "signals", label: `Signals (${allSigs.length})` }, { key: "log", label: `Log${closedT.length > 0 ? ` (${closedT.length})` : ""}` }].map(tab => (
-            <button key={tab.key} onClick={() => setPage(tab.key)} style={{ flex: 1, padding: "8px 0", fontSize: 11, fontWeight: 600, cursor: "pointer", border: "none", borderBottom: page === tab.key ? `2px solid ${T.accent}` : "2px solid transparent", background: "transparent", color: page === tab.key ? T.text : T.textDim }}>{tab.label}</button>
+            <button key={tab.key} onClick={() => setPage(tab.key)} style={{ flex: 1, padding: "10px 0", fontSize: fs.sm, fontWeight: 600, cursor: "pointer", border: "none", borderBottom: page === tab.key ? `2px solid ${T.accent}` : "2px solid transparent", background: "transparent", color: page === tab.key ? T.text : T.textDim, minHeight: tap }}>{tab.label}</button>
           ))}
         </div>
       )}
 
-      {fallback && <div style={{ background: T.yellowSoft, borderBottom: `1px solid ${T.yellow}30`, padding: "6px 20px", display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 10, color: T.yellow }}>⚠ Sample data</span><button onClick={fetchAll} style={{ background: T.yellow, color: "#000", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Retry</button></div>}
+      {fallback && <div style={{ background: T.yellowSoft, borderBottom: `1px solid ${T.yellow}30`, padding: `6px ${pad}`, display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: fs.sm, color: T.yellow }}>⚠ Sample data</span><button onClick={fetchAll} style={{ background: T.yellow, color: "#000", border: "none", borderRadius: 5, padding: "4px 12px", fontSize: fs.sm, fontWeight: 600, cursor: "pointer", minHeight: tap - 4 }}>Retry</button></div>}
 
-      <div style={{ padding: mob ? 10 : 16 }}>
-        {/* SIGNALS PAGE */}
+      <div style={{ padding: pad }}>
+        {/* ═══ SIGNALS PAGE ═══ */}
         {loaded && page === "signals" && hasPrices && (
-          <div style={{ display: mob ? "block" : "grid", gridTemplateColumns: "1fr 340px", gap: 12 }}>
-            <div>
-              <div style={{ display: "flex", gap: mob ? 8 : 14, marginBottom: 10, fontSize: 11, fontFamily: T.mono, flexWrap: "wrap" }}>
-                <div><span style={{ color: T.textDim, fontSize: 9 }}>MKT </span><span style={{ fontWeight: 600 }}>${globalD ? (globalD.total_market_cap.usd / 1e12).toFixed(2) : "2.84"}T</span></div>
-                <div><span style={{ color: T.textDim, fontSize: 9 }}>VOL </span><span style={{ fontWeight: 600 }}>${globalD ? (globalD.total_volume.usd / 1e9).toFixed(1) : "98.2"}B</span></div>
-                <div><span style={{ color: T.textDim, fontSize: 9 }}>F&G </span><span style={{ fontWeight: 600, color: fgC }}>{fgD.value} {fgD.label}</span></div>
+          <div style={{ display: compact ? "flex" : "grid", flexDirection: "column", gridTemplateColumns: tablet ? "1fr 300px" : "1fr 360px", gap: compact ? 10 : 14 }}>
+
+            {/* LEFT: Chart area */}
+            <div style={{ position: mob ? "sticky" : "relative", top: mob ? 46 : "auto", zIndex: mob ? 10 : "auto", background: T.bg }}>
+              {/* Market stats */}
+              <div style={{ display: "flex", gap: mob ? 10 : 14, marginBottom: 8, fontSize: fs.sm, fontFamily: T.mono, flexWrap: "wrap" }}>
+                <div><span style={{ color: T.textDim, fontSize: fs.xs }}>MKT </span><span style={{ fontWeight: 600 }}>${globalD ? (globalD.total_market_cap.usd / 1e12).toFixed(2) : "2.84"}T</span></div>
+                <div><span style={{ color: T.textDim, fontSize: fs.xs }}>VOL </span><span style={{ fontWeight: 600 }}>${globalD ? (globalD.total_volume.usd / 1e9).toFixed(1) : "98.2"}B</span></div>
+                <div><span style={{ color: T.textDim, fontSize: fs.xs }}>F&G </span><span style={{ fontWeight: 600, color: fgC }}>{fgD.value} {fgD.label}</span></div>
               </div>
 
-              <div style={{ display: "flex", gap: 4, overflowX: "auto", marginBottom: 10, WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
+              {/* Coin ticker — larger touch targets on mobile */}
+              <div style={{ display: "flex", gap: mob ? 6 : 4, overflowX: "auto", marginBottom: 8, WebkitOverflowScrolling: "touch", paddingBottom: 4, msOverflowStyle: "none", scrollbarWidth: "none" }}>
                 {COINS.map(c => {
                   const d = merged[c.id]; if (!d?.price) return null;
                   const ch = d.change24h || 0, chC = ch >= 0 ? T.green : T.red;
                   const sel = selCoin.id === c.id;
                   const hasSig = allSigs.some(s => s.coinId === c.id);
                   return (
-                    <button key={c.id} onClick={() => { setSelCoin(c); setPreviewSig(null); }} style={{ background: sel ? T.surfaceRaised : "transparent", border: `1px solid ${sel ? T.accent : T.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minWidth: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: c.color }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: sel ? T.text : T.textSoft }}>{c.symbol}</span>
-                      <span style={{ fontSize: 10, color: chC, fontFamily: T.mono, fontWeight: 600 }}>{ch >= 0 ? "+" : ""}{ch.toFixed(1)}%</span>
-                      {hasSig && <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.yellow }} />}
+                    <button key={c.id} onClick={() => { setSelCoin(c); setPreviewSig(null); }} style={{
+                      background: sel ? T.surfaceRaised : "transparent",
+                      border: `1.5px solid ${sel ? T.accent : T.border}`, borderRadius: 8,
+                      padding: mob ? "8px 12px" : "5px 10px", cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 6,
+                      minWidth: 0, whiteSpace: "nowrap", flexShrink: 0,
+                      minHeight: tap,
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.color }} />
+                      <span style={{ fontSize: fs.sm, fontWeight: 600, color: sel ? T.text : T.textSoft }}>{c.symbol}</span>
+                      <span style={{ fontSize: fs.xs, color: chC, fontFamily: T.mono, fontWeight: 600 }}>{ch >= 0 ? "+" : ""}{ch.toFixed(1)}%</span>
+                      {hasSig && <div style={{ width: 5, height: 5, borderRadius: "50%", background: T.yellow }} />}
                     </button>
                   );
                 })}
               </div>
 
+              {/* OHLC Chart — fluid width via containerRef */}
               <OHLCChart candles={ohlc[selCoin.id]} coin={selCoin} currentPrice={merged[selCoin.id]?.price} previewSignal={previewSig} openPositions={openT} isMobile={mob} tradeAmounts={amounts} balance={bal} fees={fees} onEnterTrade={enterTrade} />
             </div>
 
-            {/* SIGNAL LIST */}
-            <div style={{ marginTop: mob ? 14 : 0 }}>
+            {/* RIGHT: Signal list */}
+            <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>Signals</span>
-                  <span style={{ fontSize: 9, padding: "2px 5px", borderRadius: 3, background: T.yellowSoft, color: T.yellow, fontWeight: 700, fontFamily: T.mono }}>BETA</span>
+                  <span style={{ fontSize: fs.lg, fontWeight: 700 }}>Signals</span>
+                  <span style={{ fontSize: fs.xs, padding: "2px 6px", borderRadius: 4, background: T.yellowSoft, color: T.yellow, fontWeight: 700, fontFamily: T.mono }}>BETA</span>
                 </div>
                 {editAmts ? (
-                  <div style={{ display: "flex", gap: 3 }}>
-                    <input value={amtText} onChange={e => setAmtText(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 4, padding: "2px 6px", fontSize: 10, color: T.text, width: 80, outline: "none", fontFamily: T.mono }} />
-                    <button onClick={saveAmts} style={{ background: T.green, color: "#fff", border: "none", borderRadius: 3, padding: "2px 6px", fontSize: 9, cursor: "pointer" }}>✓</button>
-                    <button onClick={() => setEditAmts(false)} style={{ background: T.surfaceRaised, color: T.textSoft, border: "none", borderRadius: 3, padding: "2px 6px", fontSize: 9, cursor: "pointer" }}>×</button>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <input value={amtText} onChange={e => setAmtText(e.target.value)} style={{ background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 5, padding: "4px 8px", fontSize: fs.sm, color: T.text, width: 90, outline: "none", fontFamily: T.mono }} />
+                    <button onClick={saveAmts} style={{ background: T.green, color: "#fff", border: "none", borderRadius: 4, padding: "4px 8px", fontSize: fs.xs, cursor: "pointer", minHeight: tap - 8 }}>✓</button>
+                    <button onClick={() => setEditAmts(false)} style={{ background: T.surfaceRaised, color: T.textSoft, border: "none", borderRadius: 4, padding: "4px 8px", fontSize: fs.xs, cursor: "pointer", minHeight: tap - 8 }}>×</button>
                   </div>
-                ) : <button onClick={() => { setAmtText(amounts.join(", ")); setEditAmts(true); }} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 4, padding: "2px 8px", fontSize: 9, color: T.textDim, cursor: "pointer", fontFamily: T.mono }}>✎ ${amounts.join("/$")}</button>}
+                ) : <button onClick={() => { setAmtText(amounts.join(", ")); setEditAmts(true); }} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 5, padding: "4px 10px", fontSize: fs.xs, color: T.textDim, cursor: "pointer", fontFamily: T.mono, minHeight: tap - 6 }}>✎ ${amounts.join("/$")}</button>}
               </div>
 
-              <div style={{ display: "flex", gap: 3, overflowX: "auto", marginBottom: 8 }}>
+              {/* Signal type filter — scrollable, larger taps */}
+              <div style={{ display: "flex", gap: mob ? 6 : 4, overflowX: "auto", marginBottom: 10, WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
                 {sigTypes.map(tp => (
-                  <button key={tp} onClick={() => setSigFilter(tp)} style={{ background: sigFilter === tp ? T.accent : "transparent", color: sigFilter === tp ? "#fff" : T.textDim, border: `1px solid ${sigFilter === tp ? T.accent : T.border}`, borderRadius: 5, padding: "4px 10px", fontSize: 10, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", whiteSpace: "nowrap" }}>{tp}</button>
+                  <button key={tp} onClick={() => setSigFilter(tp)} style={{
+                    background: sigFilter === tp ? T.accent : "transparent",
+                    color: sigFilter === tp ? "#fff" : T.textDim,
+                    border: `1px solid ${sigFilter === tp ? T.accent : T.border}`,
+                    borderRadius: 6, padding: mob ? "8px 14px" : "5px 12px",
+                    fontSize: fs.sm, fontWeight: 600, cursor: "pointer",
+                    textTransform: "capitalize", whiteSpace: "nowrap",
+                    minHeight: tap - 4,
+                  }}>{tp}</button>
                 ))}
               </div>
 
-              <div style={{ maxHeight: mob ? "none" : "calc(100vh - 230px)", overflowY: mob ? "visible" : "auto", display: "flex", flexDirection: "column", gap: 6, paddingRight: mob ? 0 : 2 }}>
+              {/* Signal cards */}
+              <div style={{ maxHeight: compact ? "none" : "calc(100vh - 230px)", overflowY: compact ? "visible" : "auto", display: "flex", flexDirection: "column", gap: mob ? 8 : 6, paddingRight: compact ? 0 : 2 }}>
                 {filtSigs.map((sig, i) => (
                   <SignalCard key={i} sig={sig} i={i} isPreview={previewSig === sig}
                     onPreview={() => { setSelCoin(COINS.find(c => c.id === sig.coinId) || selCoin); setPreviewSig(previewSig === sig ? null : sig); }}
@@ -794,12 +846,12 @@ export default function App() {
           </div>
         )}
 
-        {loaded && page === "signals" && !hasPrices && <div style={{ textAlign: "center", padding: 60 }}><div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>◌</div><div style={{ fontSize: 14, fontWeight: 600 }}>Connecting to markets...</div></div>}
+        {loaded && page === "signals" && !hasPrices && <div style={{ textAlign: "center", padding: 60 }}><div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>◌</div><div style={{ fontSize: fs.lg, fontWeight: 600 }}>Connecting to markets...</div></div>}
 
-        {/* TRADE LOG */}
+        {/* ═══ TRADE LOG ═══ */}
         {loaded && page === "log" && (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr 1fr" : "repeat(6, 1fr)", gap: 6, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: mob ? "repeat(3, 1fr)" : tablet ? "repeat(3, 1fr)" : "repeat(6, 1fr)", gap: mob ? 6 : 8, marginBottom: 14 }}>
               {[
                 { l: "TRADES", v: closedT.length, c: T.text }, { l: "WINS", v: wins, c: T.green },
                 { l: "LOSSES", v: closedT.length - wins, c: T.red },
@@ -807,54 +859,54 @@ export default function App() {
                 { l: "TOTAL", v: `${closedPnl >= 0 ? "+" : ""}$${fmt(closedPnl)}`, c: closedPnl >= 0 ? T.green : T.red },
                 { l: "AVG", v: closedT.length > 0 ? `${(closedPnl / closedT.length) >= 0 ? "+" : ""}$${fmt(closedPnl / closedT.length)}` : "—", c: closedPnl >= 0 ? T.green : T.red },
               ].map((s, i) => (
-                <div key={i} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, padding: "8px 10px" }}>
-                  <div style={{ fontSize: 8, color: T.textDim, fontFamily: T.mono, letterSpacing: 0.5 }}>{s.l}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: s.c, fontFamily: T.mono }}>{s.v}</div>
+                <div key={i} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: mob ? "10px" : "8px 10px" }}>
+                  <div style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono, letterSpacing: 0.5 }}>{s.l}</div>
+                  <div style={{ fontSize: mob ? 16 : 18, fontWeight: 700, color: s.c, fontFamily: T.mono }}>{s.v}</div>
                 </div>
               ))}
             </div>
-            <EquityCurve closedTrades={closedT} isMobile={mob} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>History</span>
-              <div style={{ display: "flex", gap: 3 }}>
+            <EquityCurve closedTrades={closedT} isMobile={compact} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: fs.md, fontWeight: 600 }}>History</span>
+              <div style={{ display: "flex", gap: 4 }}>
                 {["all", "wins", "losses"].map(f => (
-                  <button key={f} onClick={() => setLogFilter(f)} style={{ background: logFilter === f ? T.accent : "transparent", color: logFilter === f ? "#fff" : T.textDim, border: `1px solid ${logFilter === f ? T.accent : T.border}`, borderRadius: 4, padding: "3px 10px", fontSize: 10, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{f}</button>
+                  <button key={f} onClick={() => setLogFilter(f)} style={{ background: logFilter === f ? T.accent : "transparent", color: logFilter === f ? "#fff" : T.textDim, border: `1px solid ${logFilter === f ? T.accent : T.border}`, borderRadius: 6, padding: mob ? "8px 14px" : "5px 12px", fontSize: fs.sm, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", minHeight: tap }}>{f}</button>
                 ))}
               </div>
             </div>
-            {closedT.length === 0 && <div style={{ textAlign: "center", padding: 40, color: T.textDim, fontSize: 12 }}>No trades yet</div>}
+            {closedT.length === 0 && <div style={{ textAlign: "center", padding: 50, color: T.textDim, fontSize: fs.md }}>No trades yet</div>}
             {closedT.slice().reverse().filter(t => logFilter === "wins" ? t.pnl > 0 : logFilter === "losses" ? t.pnl <= 0 : true).map((trade, i) => {
               const w = trade.pnl > 0, isExp = expClosed === i, col = w ? T.green : T.red;
               return (
-                <div key={i} style={{ background: T.surface, border: `1px solid ${col}12`, borderRadius: 8, padding: mob ? 10 : 12, marginBottom: 6, cursor: "pointer" }} onClick={() => setExpClosed(isExp ? null : i)}>
+                <div key={i} style={{ background: T.surface, border: `1px solid ${col}12`, borderRadius: 10, padding: mob ? "12px" : "12px 14px", marginBottom: 8, cursor: "pointer" }} onClick={() => setExpClosed(isExp ? null : i)}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>{trade.symbol}</span>
-                        <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: `${col}15`, color: col, fontWeight: 600 }}>{trade.type}</span>
-                        <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: `${col}10`, color: col, fontWeight: 700 }}>{trade.reason}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                        <span style={{ fontSize: fs.lg, fontWeight: 700 }}>{trade.symbol}</span>
+                        <span style={{ fontSize: fs.xs, padding: "2px 6px", borderRadius: 5, background: `${col}15`, color: col, fontWeight: 600 }}>{trade.type}</span>
+                        <span style={{ fontSize: fs.xs, padding: "2px 6px", borderRadius: 5, background: `${col}10`, color: col, fontWeight: 700 }}>{trade.reason}</span>
                       </div>
-                      <div style={{ fontSize: 9, color: T.textDim, fontFamily: T.mono }}>{trade.rr && `R/R:${trade.rr} · `}{trade.duration}</div>
+                      <div style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono }}>{trade.rr && `R/R:${trade.rr} · `}{trade.duration}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: col, fontFamily: T.mono }}>{trade.pnl >= 0 ? "+" : ""}${fmt(trade.pnl)}</div>
-                      <div style={{ fontSize: 10, color: col, fontFamily: T.mono }}>{trade.pnlPct >= 0 ? "+" : ""}{trade.pnlPct.toFixed(1)}%</div>
+                      <div style={{ fontSize: mob ? 16 : 18, fontWeight: 700, color: col, fontFamily: T.mono }}>{trade.pnl >= 0 ? "+" : ""}${fmt(trade.pnl)}</div>
+                      <div style={{ fontSize: fs.sm, color: col, fontFamily: T.mono }}>{trade.pnlPct >= 0 ? "+" : ""}{trade.pnlPct.toFixed(1)}%</div>
                     </div>
                   </div>
                   {isExp && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4, 1fr)", gap: 4, marginBottom: 6 }}>
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4, 1fr)", gap: 6, marginBottom: 8 }}>
                         {[{ l: "INVESTED", v: `$${trade.investAmt}` }, { l: "ENTRY→EXIT", v: `$${fmt(trade.entryPrice)}→$${fmt(trade.exitPrice)}` }, { l: "FEES", v: `$${fmt(trade.entryFee + (trade.exitFee || 0))}`, c: T.yellow }, { l: "COINS", v: fmt(trade.coins) }].map((s, j) => (
-                          <div key={j} style={{ background: T.bg, borderRadius: 5, padding: "6px 8px" }}>
-                            <div style={{ fontSize: 8, color: T.textDim, fontFamily: T.mono }}>{s.l}</div>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: s.c || T.text, fontFamily: T.mono }}>{s.v}</div>
+                          <div key={j} style={{ background: T.bg, borderRadius: 6, padding: "8px 10px" }}>
+                            <div style={{ fontSize: fs.xs, color: T.textDim, fontFamily: T.mono }}>{s.l}</div>
+                            <div style={{ fontSize: fs.md, fontWeight: 600, color: s.c || T.text, fontFamily: T.mono }}>{s.v}</div>
                           </div>
                         ))}
                       </div>
-                      <ClosedChart trade={trade} isMobile={mob} />
+                      <ClosedChart trade={trade} isMobile={compact} />
                     </div>
                   )}
-                  <div style={{ display: "flex", gap: 12, fontSize: 9, color: T.textDim, marginTop: isExp ? 6 : 2, fontFamily: T.mono }}><span>↓ {trade.enteredAt}</span><span>↑ {trade.closedAt}</span></div>
+                  <div style={{ display: "flex", gap: 14, fontSize: fs.xs, color: T.textDim, marginTop: isExp ? 8 : 3, fontFamily: T.mono }}><span>↓ {trade.enteredAt}</span><span>↑ {trade.closedAt}</span></div>
                 </div>
               );
             })}
@@ -862,9 +914,37 @@ export default function App() {
         )}
       </div>
 
-      <div style={{ padding: mob ? "8px 12px" : "8px 20px", borderTop: `1px solid ${T.border}`, marginTop: 20 }}>
-        <p style={{ fontSize: 9, color: T.textDim, margin: 0, lineHeight: 1.5 }}><strong style={{ color: T.textSoft }}>Disclaimer:</strong> Paper trading with simulated funds. Signals from Kraken OHLC analysis. Not financial advice. Crypto involves significant risk.</p>
+      {/* Disclaimer */}
+      <div style={{ padding: `10px ${pad}`, borderTop: `1px solid ${T.border}`, marginTop: 20 }}>
+        <p style={{ fontSize: fs.xs, color: T.textDim, margin: 0, lineHeight: 1.6 }}><strong style={{ color: T.textSoft }}>Disclaimer:</strong> Paper trading with simulated funds. Signals from Kraken OHLC analysis. Not financial advice. Crypto involves significant risk.</p>
       </div>
+
+      {/* ═══ MOBILE BOTTOM NAV ═══ */}
+      {loaded && mob && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+          display: "flex", background: T.surface,
+          borderTop: `1px solid ${T.border}`,
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}>
+          {[
+            { key: "signals", label: "Signals", count: allSigs.length },
+            { key: "log", label: "Log", count: closedT.length },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => setPage(tab.key)} style={{
+              flex: 1, padding: "10px 0 8px", fontSize: 11, fontWeight: 600,
+              cursor: "pointer", border: "none",
+              borderTop: page === tab.key ? `2px solid ${T.accent}` : "2px solid transparent",
+              background: "transparent",
+              color: page === tab.key ? T.text : T.textDim,
+              minHeight: 48, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            }}>
+              <span>{tab.label}</span>
+              {tab.count > 0 && <span style={{ fontSize: 9, color: page === tab.key ? T.accent : T.textDim, fontFamily: T.mono }}>{tab.count}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       <style>{`
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -872,9 +952,13 @@ export default function App() {
         ::-webkit-scrollbar{width:3px;height:3px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:${T.border};border-radius:3px}
-        button{transition:opacity .12s}
+        button{transition:opacity .12s;-webkit-tap-highlight-color:transparent}
         button:hover{opacity:.85}
-        input,select{font-family:${T.mono}}
+        button:active{opacity:.7}
+        input,select{font-family:${T.mono};-webkit-appearance:none}
+        @supports(padding: env(safe-area-inset-bottom)){
+          body{padding-bottom:env(safe-area-inset-bottom)}
+        }
       `}</style>
     </div>
   );
